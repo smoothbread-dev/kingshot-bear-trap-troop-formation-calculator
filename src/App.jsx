@@ -1,3 +1,4 @@
+// test
 import { useState } from "react";
 
 const TROOP_TYPES = [
@@ -36,8 +37,6 @@ const DEFAULT_TROOPS = {
   supremeArcher:   0,
 };
 
-const ADDITIONAL_OPTIONS = [0, ...Array.from({ length: 10 }, (_, i) => (i + 1) * 3000)];
-
 function fmt(n) { return Math.round(n).toLocaleString(); }
 
 function sortedTroops(troopMap) {
@@ -53,6 +52,8 @@ function sortedTroops(troopMap) {
 
 function calculateFormations(troops, marchSize, numMain, numToken) {
   const pool = { ...troops };
+  // Total formations including lead
+  const totalFormations = numMain + numToken + 1;
 
   function deduct(key, amt) {
     const v = Math.min(pool[key], Math.max(0, Math.round(amt)));
@@ -64,6 +65,7 @@ function calculateFormations(troops, marchSize, numMain, numToken) {
     return Object.values(pool).reduce((a, b) => a + b, 0);
   }
 
+  // Fill up to targetSize from pool in display order
   function fill(troopMap, targetSize) {
     const fillOrder = [
       "apexInfantry", "apexCavalry", "apexArcher",
@@ -80,8 +82,8 @@ function calculateFormations(troops, marchSize, numMain, numToken) {
     }
   }
 
-  // ── Archer reserve for all non-Chenko formations ──────────────────────────
-  const totalFormations           = numMain + numToken + 1;
+  // ── Pre-reserve archers for every non-Chenko formation ───────────────────
+  // Every formation except Chenko (i=0) gets a guaranteed archer slice
   const formationsNeedingReserve  = totalFormations - 1;
   const archerReservePerFormation = Math.round(marchSize * 0.05);
   const totalArchersAvailable     = pool.apexArcher + pool.supremeArcher;
@@ -95,11 +97,10 @@ function calculateFormations(troops, marchSize, numMain, numToken) {
   const supReserve   = deduct("supremeArcher", Math.min(pool.supremeArcher, totalReserve));
   const apexReserve  = deduct("apexArcher",    Math.max(0, totalReserve - supReserve));
 
-  const perFormationApex    = formationsNeedingReserve > 0
-    ? Math.floor(apexReserve    / formationsNeedingReserve) : 0;
-  const perFormationSupreme = formationsNeedingReserve > 0
-    ? Math.floor(supReserve / formationsNeedingReserve) : 0;
+  const perFormationApex    = formationsNeedingReserve > 0 ? Math.floor(apexReserve    / formationsNeedingReserve) : 0;
+  const perFormationSupreme = formationsNeedingReserve > 0 ? Math.floor(supReserve / formationsNeedingReserve) : 0;
 
+  // Track how many reserve draws remain
   let reserveDrawsLeft = formationsNeedingReserve;
 
   function takeReservedArchers() {
@@ -110,13 +111,13 @@ function calculateFormations(troops, marchSize, numMain, numToken) {
 
   const formations = [];
 
-  // ── Main joins (hero marches) — capped at marchSize ──────────────────────
+  // ── Main joins (hero marches) ─────────────────────────────────────────────
   for (let i = 0; i < numMain; i++) {
     const t    = {};
     const hero = ["Chenko", "Amane", "Yeonwoo"][i] || null;
 
     if (i === 0) {
-      // Chenko: 10% inf / 10% cav / 80% archer
+      // Chenko: strictly 10% Apex Infantry / 10% Apex Cavalry / 80% Apex Archer
       const inf  = deduct("apexInfantry", Math.round(marchSize * 0.10));
       const cav  = deduct("apexCavalry",  Math.round(marchSize * 0.10));
       const arch = deduct("apexArcher",   marchSize - inf - cav);
@@ -125,9 +126,9 @@ function calculateFormations(troops, marchSize, numMain, numToken) {
       if (arch > 0) t["Apex Archer"]   = arch;
       fill(t, marchSize);
     } else {
-      // Amane / Yeonwoo: reserved archers first, then archer-heavy
+      // Amane / Yeonwoo: inject reserved archers first, then archer-heavy
       const reserved = takeReservedArchers();
-      if (reserved.apex    > 0) t["Apex Archer"]    = (t["Apex Archer"]    || 0) + reserved.apex;
+      if (reserved.apex    > 0) t["Apex Archer"]   = (t["Apex Archer"]   || 0) + reserved.apex;
       if (reserved.supreme > 0) t["Supreme Archer"] = (t["Supreme Archer"] || 0) + reserved.supreme;
       const usedSoFar = reserved.apex + reserved.supreme;
 
@@ -139,7 +140,7 @@ function calculateFormations(troops, marchSize, numMain, numToken) {
       );
       const extraApexA = deduct("apexArcher",    Math.min(pool.apexArcher,    Math.max(0, archTarget - usedSoFar)));
       const extraSupA  = deduct("supremeArcher", Math.max(0, archTarget - usedSoFar - extraApexA));
-      if (extraApexA > 0) t["Apex Archer"]    = (t["Apex Archer"]    || 0) + extraApexA;
+      if (extraApexA > 0) t["Apex Archer"]   = (t["Apex Archer"]   || 0) + extraApexA;
       if (extraSupA  > 0) t["Supreme Archer"] = (t["Supreme Archer"] || 0) + extraSupA;
 
       const rest = marchSize - (t["Apex Archer"] || 0) - (t["Supreme Archer"] || 0);
@@ -158,32 +159,51 @@ function calculateFormations(troops, marchSize, numMain, numToken) {
     });
   }
 
-  // Return unused archer reserves to pool before token joins
+  // ── Token joins ───────────────────────────────────────────────────────────
+  // Key fix: total available after hero joins gets split between
+  // (numToken) token marches + 1 lead. We give the lead exactly marchSize
+  // worth of troops, and ALL the rest goes to tokens — last token is catch-all.
+  const afterHeroJoins = poolTotal();
+
+  // Return all remaining reserved archers back to pool before calculating
+  // token + lead split so nothing is "lost"
   const unusedReserveApex    = perFormationApex    * reserveDrawsLeft;
   const unusedReserveSupreme = perFormationSupreme * reserveDrawsLeft;
   pool.apexArcher    += unusedReserveApex;
   pool.supremeArcher += unusedReserveSupreme;
-  reserveDrawsLeft = 0;
+  reserveDrawsLeft = 0; // consumed
 
-  // ── Token joins — each capped at marchSize, same as main joins & lead ─────
+  // Re-snapshot pool after returning reserves
+  const totalAfterHero = poolTotal();
+
+  // Lead gets exactly marchSize (or whatever is left if less)
+  const leadAllocation = Math.min(marchSize, totalAfterHero);
+  // Everything else goes to token joins
+  const tokenTotal     = totalAfterHero - leadAllocation;
+  const tokenSize      = numToken > 0 ? Math.floor(tokenTotal / numToken) : 0;
+
   for (let i = 0; i < numToken; i++) {
-    const t        = {};
-    const available = Math.min(marchSize, poolTotal());
+    const t      = {};
+    const isLast = i === numToken - 1;
 
-    // Keep marchSize worth of troops reserved for the lead before filling token
-    const reservedForLead = Math.min(marchSize, poolTotal());
-    const canUse          = Math.max(0, poolTotal() - reservedForLead + available);
-    const thisSize        = Math.min(marchSize, Math.max(0, poolTotal() - marchSize));
+    // Last token join absorbs ALL remaining pool minus the lead allocation
+    const remaining      = poolTotal();
+    const leadStillNeeds = leadAllocation; // we haven't deducted lead yet
+    const thisSize       = isLast
+      ? Math.max(0, remaining - leadAllocation)
+      : Math.min(tokenSize, Math.max(0, remaining - leadAllocation - tokenSize * (numToken - 1 - i)));
 
     if (thisSize > 0) {
-      // 5% archers, rest split infantry / cavalry from supreme pool
+      // Guaranteed archer slice: 5% of thisSize from supreme first, then apex
       const archerSlice = Math.round(thisSize * 0.05);
       const supA = deduct("supremeArcher", Math.min(pool.supremeArcher, archerSlice));
       const apxA = deduct("apexArcher",    Math.min(pool.apexArcher,    Math.max(0, archerSlice - supA)));
-      if (apxA > 0) t["Apex Archer"]    = apxA;
+      if (apxA > 0) t["Apex Archer"]   = apxA;
       if (supA > 0) t["Supreme Archer"] = supA;
+      const archerUsed = apxA + supA;
 
-      const rest = thisSize - (apxA + supA);
+      // Fill rest with supreme infantry / cavalry
+      const rest = thisSize - archerUsed;
       const inf  = deduct("supremeInfantry", Math.min(pool.supremeInfantry, Math.round(rest * 0.5)));
       const cav  = deduct("supremeCavalry",  Math.max(0, rest - inf));
       if (inf > 0) t["Supreme Infantry"] = inf;
@@ -199,7 +219,7 @@ function calculateFormations(troops, marchSize, numMain, numToken) {
     });
   }
 
-  // ── Rally Lead — fill up to marchSize ─────────────────────────────────────
+  // ── Rally Lead — fill exactly up to marchSize, no more ───────────────────
   const leadTroops = {};
   const fillOrder  = [
     "apexInfantry", "apexCavalry", "apexArcher",
@@ -226,14 +246,11 @@ function calculateFormations(troops, marchSize, numMain, numToken) {
 }
 
 export default function App() {
-  const [troops,          setTroops]          = useState(DEFAULT_TROOPS);
-  const [marchSize,       setMarchSize]       = useState(138710);
-  const [additionalMarch, setAdditionalMarch] = useState(0);
-  const [mainMarches,     setMainMarches]     = useState(3);
-  const [tokenMarches,    setTokenMarches]    = useState(3);
-  const [formations,      setFormations]      = useState(null);
-
-  const effectiveMarch = marchSize + additionalMarch;
+  const [troops,       setTroops]       = useState(DEFAULT_TROOPS);
+  const [marchSize,    setMarchSize]    = useState(135210);
+  const [mainMarches,  setMainMarches]  = useState(3);
+  const [tokenMarches, setTokenMarches] = useState(3);
+  const [formations,   setFormations]   = useState(null);
 
   const totalTroops   = Object.values(troops).reduce((a, b) => a + b, 0);
   const totalMarches  = mainMarches + tokenMarches + 1;
@@ -253,17 +270,6 @@ export default function App() {
     width: "100%", background: "#161b22", border: "1px solid #2a3040",
     borderRadius: 6, padding: "7px 10px", color: "#e0d8c8",
     fontSize: 14, boxSizing: "border-box",
-  };
-
-  const sel = {
-    width: "100%", background: "#161b22", border: "1px solid #2a3040",
-    borderRadius: 6, padding: "7px 10px", color: "#e0d8c8",
-    fontSize: 14, boxSizing: "border-box", cursor: "pointer",
-    appearance: "none", WebkitAppearance: "none",
-    backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23c8a040' d='M6 8L1 3h10z'/%3E%3C/svg%3E")`,
-    backgroundRepeat: "no-repeat",
-    backgroundPosition: "right 10px center",
-    paddingRight: 30,
   };
 
   return (
@@ -299,40 +305,11 @@ export default function App() {
       {/* March Settings */}
       <div style={{ background: "#0f1318", border: "1px solid #2a2010", borderRadius: 12, padding: 16, marginBottom: 16 }}>
         <div style={{ fontSize: 11, letterSpacing: 3, color: "#6a5a3a", marginBottom: 12, textTransform: "uppercase" }}>March Settings</div>
-
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
-          <div>
-            <div style={{ fontSize: 10, color: "#8a7a5a", marginBottom: 3, letterSpacing: 1 }}>MARCH SIZE</div>
-            <input
-              type="number"
-              value={marchSize || ""}
-              placeholder="0"
-              onChange={e => setMarchSize(parseInt(e.target.value) || 0)}
-              style={inp}
-            />
-          </div>
-          <div>
-            <div style={{ fontSize: 10, color: "#8a7a5a", marginBottom: 3, letterSpacing: 1 }}>ADDITIONAL MARCH SIZE</div>
-            <select
-              value={additionalMarch}
-              onChange={e => setAdditionalMarch(parseInt(e.target.value))}
-              style={sel}
-            >
-              {ADDITIONAL_OPTIONS.map(v => (
-                <option key={v} value={v} style={{ color: v === 30000 ? "#20e8b0" : "#e0d8c8" }}>
-                  {v === 0 ? "None" : fmt(v)}
-                </option>
-              ))}
-            </select>
-          </div>
+        <div style={{ marginBottom: 12 }}>
+          <div style={{ fontSize: 10, color: "#8a7a5a", marginBottom: 3, letterSpacing: 1 }}>MARCH SIZE</div>
+          <input type="number" value={marchSize || ""} placeholder="0"
+            onChange={e => setMarchSize(parseInt(e.target.value) || 0)} style={inp} />
         </div>
-
-        {additionalMarch > 0 && (
-          <div style={{ marginBottom: 12, fontSize: 11, color: "#5a4a2a", textAlign: "right" }}>
-            Effective march size: <span style={{ color: "#c8a040", fontWeight: "bold" }}>{fmt(effectiveMarch)}</span>
-          </div>
-        )}
-
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
           <div>
             <div style={{ fontSize: 10, color: "#3d7a3d", marginBottom: 3, letterSpacing: 1 }}>MAIN JOINS (w/ heroes)</div>
@@ -345,7 +322,6 @@ export default function App() {
               onChange={e => setTokenMarches(Math.max(0, parseInt(e.target.value) || 0))} style={inp} />
           </div>
         </div>
-
         <div style={{ marginTop: 10, fontSize: 11, color: "#5a4a2a", textAlign: "center" }}>
           Total marches: <span style={{ color: "#c8a040" }}>{totalMarches}</span> (incl. 1 rally lead)
         </div>
@@ -353,7 +329,7 @@ export default function App() {
 
       {/* Calculate Button */}
       <button
-        onClick={() => setFormations(calculateFormations(troops, effectiveMarch, mainMarches, tokenMarches))}
+        onClick={() => setFormations(calculateFormations(troops, marchSize, mainMarches, tokenMarches))}
         style={{ width: "100%", padding: 13, borderRadius: 10, border: "none", background: "linear-gradient(135deg,#8a6010,#c8a040)", color: "#0a0c0f", fontWeight: "bold", fontSize: 15, letterSpacing: 1, cursor: "pointer", marginBottom: 20, fontFamily: "'Georgia',serif" }}>
         ⚔ CALCULATE FORMATIONS
       </button>
