@@ -2,14 +2,13 @@
 
 A mobile-friendly React app that helps Kingshot alliance members plan and distribute troops across rally formations — including hero joins, token joins, and the rally lead — without going over march capacity.
 
-🌐 **Live App:** [Open Calculator](https://smoothbread-dev.github.io/kingshot-bear-trap-troop-formation-calculator/)
+🌐 **Live App:** <a href="https://smoothbread-dev.github.io/kingshot-bear-trap-troop-formation-calculator/" target="_blank" rel="noopener noreferrer">Open Calculator</a>
 
 ---
 
 ## 🚀 Features
 
 - **Troop input** for all 6 troop types (Apex & Supreme: Infantry, Cavalry, Archer)
-- **Configurable march size** with an optional additional march size bonus (3k–30k)
 - **Main joins** (up to 3, assigned to Chenko, Amane, Yeonwoo) with hero-optimized compositions
 - **Token joins** (up to 10) each capped at the same march size as main joins and the lead
 - **Rally Lead** formation always filled last and guaranteed its full march size
@@ -30,11 +29,11 @@ A mobile-friendly React app that helps Kingshot alliance members plan and distri
 ## 🧮 How It Works
 
 1. **Enter your troop counts** for each type across Apex and Supreme tiers.
-2. **Set your march size** and optionally add a bonus march size (e.g. from rally capacity buffs).
+2. **Set your march size**.
 3. **Choose how many main joins** (hero marches, 1–3) and **token joins** (0–10) you want.
 4. Hit **⚔ CALCULATE FORMATIONS** and the app will:
    - Fill Chenko's march with ~80% Apex Archers
    - Distribute remaining archers fairly across Amane, Yeonwoo, and token joins
-   - Cap every formation (main, token, and lead) at the same effective march size
+   - Cap formations (main and lead) at the same effective march size
    - Reserve the lead's full march size before allocating token joins
    - Show undeployed troops in the summary
