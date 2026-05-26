@@ -3,7 +3,10 @@ name: Deploy to GitHub Pages
 on:
   push:
     branches:
-      - main  # runs every time you push to main
+      - main
+
+permissions:
+  contents: write  # ← Allows pushing to gh-pages branch
 
 jobs:
   build-and-deploy:
@@ -11,10 +14,10 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4  # Updated
 
       - name: Setup Node.js
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4  # Updated
         with:
           node-version: 18
 
