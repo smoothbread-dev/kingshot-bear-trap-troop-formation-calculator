@@ -2,7 +2,7 @@
 
 A mobile-friendly React app that helps Kingshot alliance members plan and distribute troops across rally formations without going over march capacity.
 
-🌐 **Live App:** <a href="https://smoothbread-dev.github.io/kingshot-bear-trap-troop-formation-calculator/" target="_blank" rel="noopener noreferrer">Open Calculator</a>
+🌐 **Live App:** [Open Calculator](https://smoothbread-dev.github.io/kingshot-bear-trap-troop-formation-calculator/)
 
 ---
 
