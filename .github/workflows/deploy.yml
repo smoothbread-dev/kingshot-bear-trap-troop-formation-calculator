@@ -3,11 +3,11 @@ name: Deploy to GitHub Pages
 on:
   push:
     branches:
-      - main  # runs every time you push to main
+      - main
 
 concurrency:
   group: github-pages-deploy
-  cancel-in-progress: true  # ← Cancels old queued runs automatically
+  cancel-in-progress: true
 
 jobs:
   build-and-deploy:
@@ -32,4 +32,4 @@ jobs:
         uses: peaceiris/actions-gh-pages@v3
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
-            publish_dir: ./dist
+          publish_dir: ./dist
