@@ -44,7 +44,8 @@ const DEFAULT_TROOPS = {
 const CHENKO_RATIO = { infantry: 10, cavalry: 10, archer: 80 };
 const LEAD_RATIO   = { infantry: 45, cavalry: 45, archer: 10 };
 
-const BONUS_MARCH_OPTIONS = Array.from({ length: 11 }, (_, i) => i * 3000);
+const SAVAGE_ADVANTAGE_OPTIONS = Array.from({ length: 11 }, (_, i) => i * 3000);
+const FEARLESS_ROAR_OPTIONS    = Array.from({ length: 11 }, (_, i) => i * 1500);
 
 // ─────────────────────────────────────────────
 //  HELPERS
@@ -69,8 +70,8 @@ function sortedTroops(troopMap) {
 //  CORE CALCULATION
 // ─────────────────────────────────────────────
 
-function calculateFormations(troops, baseMarchSize, bonusMarch, tokenCount) {
-  const effectiveMarch = baseMarchSize + bonusMarch;
+function calculateFormations(troops, baseMarchSize, savageAdvantage, fearlessRoar, tokenCount, tokenMarchSize) {
+  const effectiveMarch = baseMarchSize + savageAdvantage + fearlessRoar;
 
   const pool = { ...troops };
 
@@ -84,7 +85,6 @@ function calculateFormations(troops, baseMarchSize, bonusMarch, tokenCount) {
     return Object.values(pool).reduce((a, b) => a + b, 0);
   }
 
-  // ── Deduct by ratio (Apex first, then Supreme) ──
   function deductByRatio(marchSize, ratioMap) {
     const t = {};
 
@@ -107,8 +107,6 @@ function calculateFormations(troops, baseMarchSize, bonusMarch, tokenCount) {
     return { troops: sortedTroops(t), total };
   }
 
-  // ── Fill remaining slots proportionally from infantry/cavalry only ──
-  // Supreme Archers always protected, Apex Archers already handled separately
   function fillInfCav(slotsRemaining, t) {
     if (slotsRemaining <= 0) return;
 
@@ -139,16 +137,12 @@ function calculateFormations(troops, baseMarchSize, bonusMarch, tokenCount) {
     }
   }
 
-  // ── Deduct archer-heavy with pre-assigned archer share ──
-  // archerShare is pre-calculated before either hero deducts
   function deductArcherHeavyWithShare(marchSize, archerShare) {
     const t = {};
 
-    // Step 1: Deduct pre-assigned Apex Archer share
     const apexArchersTaken = deduct("apexArcher", archerShare);
     if (apexArchersTaken > 0) t["Apex Archer"] = apexArchersTaken;
 
-    // Step 2: Fill remaining slots from infantry/cavalry pool sequentially
     const slotsRemaining = marchSize - apexArchersTaken;
     fillInfCav(slotsRemaining, t);
 
@@ -156,9 +150,11 @@ function calculateFormations(troops, baseMarchSize, bonusMarch, tokenCount) {
     return { troops: sortedTroops(t), total, filled: total };
   }
 
-  // ── Even split of remaining pool across token joins ──
+  // Token join: proportional split capped at tokenMarchSize
   function deductEvenTokenSplit(shareSize, poolSnapshot, snapshotTotal) {
-    if (shareSize <= 0 || snapshotTotal === 0) {
+    const cap = tokenMarchSize > 0 ? Math.min(shareSize, tokenMarchSize) : shareSize;
+
+    if (cap <= 0 || snapshotTotal === 0) {
       return { troops: {}, total: 0, filled: 0 };
     }
 
@@ -172,12 +168,12 @@ function calculateFormations(troops, baseMarchSize, bonusMarch, tokenCount) {
     const allocs = {};
     let floorSum = 0;
     for (const k of keys) {
-      raws[k]   = shareSize * (poolSnapshot[k] / snapshotTotal);
+      raws[k]   = cap * (poolSnapshot[k] / snapshotTotal);
       allocs[k] = Math.floor(raws[k]);
       floorSum += allocs[k];
     }
 
-    let gap = shareSize - floorSum;
+    let gap = cap - floorSum;
     const sorted = keys
       .map(k => ({ k, frac: raws[k] - allocs[k] }))
       .sort((a, b) => b.frac - a.frac);
@@ -194,7 +190,7 @@ function calculateFormations(troops, baseMarchSize, bonusMarch, tokenCount) {
 
   const formations = [];
 
-  // ── STEP 1: Chenko — Ratio 10/10/80 at effectiveMarch ──
+  // ── STEP 1: Chenko ──
   const chenkoResult = deductByRatio(effectiveMarch, CHENKO_RATIO);
   formations.push({
     label:         "Rally Join 1",
@@ -208,7 +204,7 @@ function calculateFormations(troops, baseMarchSize, bonusMarch, tokenCount) {
     total:         chenkoResult.total,
   });
 
-  // ── STEP 2: Lead — Ratio 45/45/10 at effectiveMarch ──
+  // ── STEP 2: Lead ──
   const leadResult = deductByRatio(effectiveMarch, LEAD_RATIO);
   formations.push({
     label:         "Rally Lead",
@@ -222,7 +218,7 @@ function calculateFormations(troops, baseMarchSize, bonusMarch, tokenCount) {
     total:         leadResult.total,
   });
 
-  // ── STEP 3: Pre-reserve Supreme Archers for token joins ──
+  // ── STEP 3: Reserve Supreme Archers for token joins ──
   let reservedSupremePerToken = 0;
   if (tokenCount > 0 && pool.supremeArcher > 0) {
     reservedSupremePerToken = Math.floor(pool.supremeArcher / tokenCount);
@@ -230,14 +226,12 @@ function calculateFormations(troops, baseMarchSize, bonusMarch, tokenCount) {
     deduct("supremeArcher", totalReserved);
   }
 
-  // ── STEP 4: Pre-split Apex Archers evenly between Amane & Yeonwoo ──
-  // Amane gets ceil (remainder goes to her as she joins first)
-  // Yeonwoo gets floor
+  // ── STEP 4: Pre-split Apex Archers between Amane & Yeonwoo ──
   const totalApexArchersAvailable = pool.apexArcher;
   const amaneArcherShare   = Math.ceil(totalApexArchersAvailable / 2);
   const yeonwooArcherShare = Math.floor(totalApexArchersAvailable / 2);
 
-  // ── STEP 5: Amane (Join 2) — Archer-heavy with pre-assigned share ──
+  // ── STEP 5: Amane ──
   const amaneResult = deductArcherHeavyWithShare(baseMarchSize, amaneArcherShare);
   formations.push({
     label:      "Rally Join 2",
@@ -250,7 +244,7 @@ function calculateFormations(troops, baseMarchSize, bonusMarch, tokenCount) {
     filled:     amaneResult.filled,
   });
 
-  // ── STEP 6: Yeonwoo (Join 3) — Archer-heavy with pre-assigned share ──
+  // ── STEP 6: Yeonwoo ──
   const yeonwooResult = deductArcherHeavyWithShare(baseMarchSize, yeonwooArcherShare);
   formations.push({
     label:      "Rally Join 3",
@@ -263,7 +257,7 @@ function calculateFormations(troops, baseMarchSize, bonusMarch, tokenCount) {
     filled:     yeonwooResult.filled,
   });
 
-  // ── STEP 7: Token Joins — Even split of remaining pool ──
+  // ── STEP 7: Token Joins ──
   pool.supremeArcher += reservedSupremePerToken * tokenCount;
 
   const tokenPoolSnapshot  = { ...pool };
@@ -276,14 +270,15 @@ function calculateFormations(troops, baseMarchSize, bonusMarch, tokenCount) {
 
     const tokenResult = deductEvenTokenSplit(thisShare, tokenPoolSnapshot, tokenSnapshotTotal);
     formations.push({
-      label:      `Token Join ${i + 1}`,
-      type:       "token",
-      hero:       null,
-      preset:     "QUANTITY",
-      baseMarch:  baseMarchSize,
-      troops:     tokenResult.troops,
-      total:      tokenResult.total,
-      filled:     tokenResult.filled,
+      label:          `Token Join ${i + 1}`,
+      type:           "token",
+      hero:           null,
+      preset:         "QUANTITY",
+      baseMarch:      baseMarchSize,
+      tokenMarchSize: tokenMarchSize,
+      troops:         tokenResult.troops,
+      total:          tokenResult.total,
+      filled:         tokenResult.filled,
     });
   }
 
@@ -297,14 +292,16 @@ function calculateFormations(troops, baseMarchSize, bonusMarch, tokenCount) {
 // ─────────────────────────────────────────────
 
 export default function App() {
-  const [troops,      setTroops]      = useState(DEFAULT_TROOPS);
-  const [baseMarch,   setBaseMarch]   = useState(0);
-  const [bonusMarch,  setBonusMarch]  = useState(0);
-  const [tokenCount,  setTokenCount]  = useState(3);
-  const [result,      setResult]      = useState(null);
+  const [troops,          setTroops]          = useState(DEFAULT_TROOPS);
+  const [baseMarch,       setBaseMarch]       = useState(0);
+  const [savageAdvantage, setSavageAdvantage] = useState(0);
+  const [fearlessRoar,    setFearlessRoar]    = useState(0);
+  const [tokenCount,      setTokenCount]      = useState(0);
+  const [tokenMarch,      setTokenMarch]      = useState(0);
+  const [result,          setResult]          = useState(null);
 
   const totalTroops    = Object.values(troops).reduce((a, b) => a + b, 0);
-  const effectiveMarch = baseMarch + bonusMarch;
+  const effectiveMarch = baseMarch + savageAdvantage + fearlessRoar;
 
   const deployedTotal = result
     ? result.formations.reduce((a, f) => a + f.total, 0)
@@ -338,7 +335,7 @@ export default function App() {
 
   function handleCalculate() {
     if (!baseMarch || baseMarch <= 0) return;
-    const res = calculateFormations(troops, baseMarch, bonusMarch, tokenCount);
+    const res = calculateFormations(troops, baseMarch, savageAdvantage, fearlessRoar, tokenCount, tokenMarch);
     setResult(res);
   }
 
@@ -395,53 +392,106 @@ export default function App() {
           March Settings
         </div>
 
+        {/* Base March */}
         <div style={{ marginBottom: 12 }}>
           <div style={{ fontSize: 10, color: "#8a7a5a", marginBottom: 3, letterSpacing: 1 }}>BASE MARCH SIZE</div>
           <input
             type="number"
             value={baseMarch || ""}
-            placeholder="e.g. 135210"
+            placeholder="0"
             onChange={e => setBaseMarch(parseInt(e.target.value) || 0)}
             style={inp}
           />
         </div>
 
+        {/* Bonus dropdowns */}
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
+
+          {/* Savage Advantage */}
           <div>
-            <div style={{ fontSize: 10, color: "#8a7a5a", marginBottom: 3, letterSpacing: 1 }}>
-              BONUS MARCH (CHENKO &amp; LEAD)
-            </div>
+            <div style={{ fontSize: 10, color: "#8a7a5a", marginBottom: 3, letterSpacing: 1 }}>SAVAGE ADVANTAGE</div>
+            <div style={{ fontSize: 9, color: "#5a4a2a", marginBottom: 4 }}>Master Valora's Skill</div>
             <select
-              value={bonusMarch}
-              onChange={e => setBonusMarch(parseInt(e.target.value) || 0)}
+              value={savageAdvantage}
+              onChange={e => setSavageAdvantage(parseInt(e.target.value) || 0)}
               style={selectStyle}
             >
-              {BONUS_MARCH_OPTIONS.map(opt => (
+              {SAVAGE_ADVANTAGE_OPTIONS.map(opt => (
                 <option key={opt} value={opt} style={{ background: "#161b22" }}>
-                  {opt === 0 ? "+0 (No Bonus)" : `+${fmt(opt)}`}
+                  {opt === 0 ? "+0 (None)" : `+${fmt(opt)}`}
                 </option>
               ))}
             </select>
           </div>
+
+          {/* Fearless Roar */}
           <div>
-            <div style={{ fontSize: 10, color: "#3d3d7a", marginBottom: 3, letterSpacing: 1 }}>TOKEN JOINS</div>
-            <input
-              type="number"
-              min={0}
-              max={10}
-              value={tokenCount}
-              onChange={e => setTokenCount(Math.max(0, parseInt(e.target.value) || 0))}
-              style={inp}
-            />
+            <div style={{ fontSize: 10, color: "#8a7a5a", marginBottom: 3, letterSpacing: 1 }}>FEARLESS ROAR</div>
+            <div style={{ fontSize: 9, color: "#5a4a2a", marginBottom: 4 }}>Pet Mighty Bison</div>
+            <select
+              value={fearlessRoar}
+              onChange={e => setFearlessRoar(parseInt(e.target.value) || 0)}
+              style={selectStyle}
+            >
+              {FEARLESS_ROAR_OPTIONS.map(opt => (
+                <option key={opt} value={opt} style={{ background: "#161b22" }}>
+                  {opt === 0 ? "+0 (None)" : `+${fmt(opt)}`}
+                </option>
+              ))}
+            </select>
           </div>
         </div>
 
-        <div style={{ fontSize: 11, color: "#5a4a2a", textAlign: "center" }}>
+        {/* Effective March Breakdown */}
+        <div style={{ fontSize: 11, color: "#5a4a2a", textAlign: "center", marginBottom: 16 }}>
           Effective march (Chenko &amp; Lead):{" "}
           <span style={{ color: "#c8a040", fontWeight: "bold" }}>{fmt(effectiveMarch)}</span>
-          {bonusMarch > 0 && (
-            <span style={{ color: "#6a5a3a" }}> ({fmt(baseMarch)} + {fmt(bonusMarch)})</span>
+          {(savageAdvantage > 0 || fearlessRoar > 0) && (
+            <span style={{ color: "#6a5a3a" }}>
+              {" "}({fmt(baseMarch)}
+              {savageAdvantage > 0 && ` + ${fmt(savageAdvantage)}`}
+              {fearlessRoar    > 0 && ` + ${fmt(fearlessRoar)}`}
+              )
+            </span>
           )}
+        </div>
+
+        {/* Token Settings */}
+        <div style={{ borderTop: "1px solid #2a2010", paddingTop: 14 }}>
+          <div style={{ fontSize: 11, letterSpacing: 3, color: "#3d3d7a", marginBottom: 10, textTransform: "uppercase" }}>
+            Token Join Settings
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+
+            {/* Token Count */}
+            <div>
+              <div style={{ fontSize: 10, color: "#5a5a8a", marginBottom: 3, letterSpacing: 1 }}>NUMBER OF JOINS</div>
+              <div style={{ fontSize: 9, color: "#5a4a2a", marginBottom: 4 }}>0–10 additional joins</div>
+              <input
+                type="number"
+                min={0}
+                max={10}
+                value={tokenCount || ""}
+                placeholder="0"
+                onChange={e => setTokenCount(Math.min(10, Math.max(0, parseInt(e.target.value) || 0)))}
+                style={inp}
+              />
+            </div>
+
+            {/* Token March Size */}
+            <div>
+              <div style={{ fontSize: 10, color: "#5a5a8a", marginBottom: 3, letterSpacing: 1 }}>TOKEN MARCH SIZE</div>
+              <div style={{ fontSize: 9, color: "#5a4a2a", marginBottom: 4 }}>Hard cap per token join</div>
+              <input
+                type="number"
+                value={tokenMarch || ""}
+                placeholder="0"
+                onChange={e => setTokenMarch(parseInt(e.target.value) || 0)}
+                style={inp}
+              />
+            </div>
+
+          </div>
         </div>
       </div>
 
@@ -469,7 +519,8 @@ export default function App() {
           {result.formations.map((f, idx) => {
             const c         = C[f.type];
             const isRatio   = f.preset === "RATIO";
-            const shortfall = !isRatio && f.baseMarch ? f.baseMarch - f.filled : 0;
+            const marchCap  = f.type === "token" ? f.tokenMarchSize : f.baseMarch;
+            const shortfall = !isRatio && marchCap > 0 ? marchCap - f.filled : 0;
 
             return (
               <div key={idx} style={{ background: c.bg, border: `1px solid ${c.border}`, borderRadius: 12, padding: 14, marginBottom: 12 }}>
@@ -483,7 +534,6 @@ export default function App() {
                         {f.hero}
                       </span>
                     )}
-
                     {f.type === "token" && (
                       <span style={{ fontSize: 10, padding: "2px 8px", background: c.badge, borderRadius: 10, color: "#9090d0" }}>TOKEN</span>
                     )}
@@ -511,7 +561,7 @@ export default function App() {
                   </div>
                 )}
 
-                {!isRatio && f.type !== "token" && (
+                {!isRatio && f.type === "join" && (
                   <div style={{ fontSize: 10, color: "#6a5a3a", marginBottom: 8, letterSpacing: 0.5 }}>
                     Saved at base march: <span style={{ color: "#c8a040" }}>{fmt(f.baseMarch)}</span>
                     {" · "}Apex Archers split evenly with partner · No bonus march applied
@@ -520,7 +570,8 @@ export default function App() {
 
                 {f.type === "token" && (
                   <div style={{ fontSize: 10, color: "#6a5a3a", marginBottom: 8, letterSpacing: 0.5 }}>
-                    Even split of remaining pool · Intentionally not full · Includes reserved Supreme Archers
+                    March cap: <span style={{ color: "#c8a040" }}>{f.tokenMarchSize > 0 ? fmt(f.tokenMarchSize) : "None set"}</span>
+                    {" · "}Even split of remaining pool · Includes reserved Supreme Archers
                   </div>
                 )}
 
@@ -589,13 +640,15 @@ export default function App() {
               Summary
             </div>
             {[
-              ["Troops deployed",   fmt(deployedTotal),                                         "#c8a040"],
-              ["Total available",   fmt(totalTroops),                                           "#c8a040"],
-              ["Undeployed",        fmt(undeployed) + (undeployed === 0 ? " ✓" : ""),          undeployed === 0 ? "#4aba4a" : "#e87020"],
-              ["Base march size",   fmt(baseMarch),                                             "#c8a040"],
-              ["Bonus march",       bonusMarch > 0 ? `+${fmt(bonusMarch)}` : "None",           bonusMarch > 0 ? "#c8a040" : "#5a4a2a"],
-              ["Effective march",   fmt(effectiveMarch),                                        "#c8a040"],
-              ["Token joins",       tokenCount > 0 ? String(tokenCount) : "None",              tokenCount > 0 ? "#c8a040" : "#5a4a2a"],
+              ["Troops deployed",  fmt(deployedTotal),                                                          "#c8a040"],
+              ["Total available",  fmt(totalTroops),                                                            "#c8a040"],
+              ["Undeployed",       fmt(undeployed) + (undeployed === 0 ? " ✓" : ""),                           undeployed === 0 ? "#4aba4a" : "#e87020"],
+              ["Base march size",  fmt(baseMarch),                                                              "#c8a040"],
+              ["Savage Advantage", savageAdvantage > 0 ? `+${fmt(savageAdvantage)}` : "None",                  savageAdvantage > 0 ? "#c8a040" : "#5a4a2a"],
+              ["Fearless Roar",    fearlessRoar    > 0 ? `+${fmt(fearlessRoar)}`    : "None",                  fearlessRoar    > 0 ? "#c8a040" : "#5a4a2a"],
+              ["Effective march",  fmt(effectiveMarch),                                                         "#c8a040"],
+              ["Token joins",      tokenCount > 0 ? String(tokenCount) : "None",                               tokenCount > 0 ? "#c8a040" : "#5a4a2a"],
+              ["Token march cap",  tokenCount > 0 && tokenMarch > 0 ? fmt(tokenMarch) : "None",               tokenCount > 0 && tokenMarch > 0 ? "#c8a040" : "#5a4a2a"],
             ].map(([label, value, col]) => (
               <div key={label} style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginBottom: 6 }}>
                 <span style={{ color: "#8a7a5a" }}>{label}</span>
