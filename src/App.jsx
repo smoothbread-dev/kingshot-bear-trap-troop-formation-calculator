@@ -355,7 +355,7 @@ export default function App() {
           background: "linear-gradient(135deg,#e8c060,#c8a040)",
           WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent",
         }}>
-          Troop Formation Calculator
+          Kingshot Bear Trap Troop Formation Calculator
         </h1>
         <div style={{ fontSize: 12, color: "#5a4a2a", marginTop: 8, display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
           <span>Total Troops:</span>
