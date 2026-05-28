@@ -45,7 +45,6 @@ const CHENKO_RATIO = { infantry: 10, cavalry: 10, archer: 80 };
 const LEAD_RATIO   = { infantry: 45, cavalry: 45, archer: 10 };
 
 const SAVAGE_ADVANTAGE_OPTIONS = Array.from({ length: 11 }, (_, i) => i * 3000);
-const FEARLESS_ROAR_OPTIONS    = Array.from({ length: 11 }, (_, i) => i * 1500);
 
 // ─────────────────────────────────────────────
 //  HELPERS
@@ -70,8 +69,8 @@ function sortedTroops(troopMap) {
 //  CORE CALCULATION
 // ─────────────────────────────────────────────
 
-function calculateFormations(troops, baseMarchSize, savageAdvantage, fearlessRoar, tokenCount, tokenMarchSize) {
-  const effectiveMarch = baseMarchSize + savageAdvantage + fearlessRoar;
+function calculateFormations(troops, baseMarchSize, savageAdvantage, tokenCount, tokenMarchSize) {
+  const effectiveMarch = baseMarchSize + savageAdvantage;
 
   const pool = { ...troops };
 
@@ -150,7 +149,6 @@ function calculateFormations(troops, baseMarchSize, savageAdvantage, fearlessRoa
     return { troops: sortedTroops(t), total, filled: total };
   }
 
-  // Token join: proportional split capped at tokenMarchSize
   function deductEvenTokenSplit(shareSize, poolSnapshot, snapshotTotal) {
     const cap = tokenMarchSize > 0 ? Math.min(shareSize, tokenMarchSize) : shareSize;
 
@@ -295,13 +293,12 @@ export default function App() {
   const [troops,          setTroops]          = useState(DEFAULT_TROOPS);
   const [baseMarch,       setBaseMarch]       = useState(0);
   const [savageAdvantage, setSavageAdvantage] = useState(0);
-  const [fearlessRoar,    setFearlessRoar]    = useState(0);
   const [tokenCount,      setTokenCount]      = useState(0);
   const [tokenMarch,      setTokenMarch]      = useState(0);
   const [result,          setResult]          = useState(null);
 
   const totalTroops    = Object.values(troops).reduce((a, b) => a + b, 0);
-  const effectiveMarch = baseMarch + savageAdvantage + fearlessRoar;
+  const effectiveMarch = baseMarch + savageAdvantage;
 
   const deployedTotal = result
     ? result.formations.reduce((a, f) => a + f.total, 0)
@@ -335,7 +332,7 @@ export default function App() {
 
   function handleCalculate() {
     if (!baseMarch || baseMarch <= 0) return;
-    const res = calculateFormations(troops, baseMarch, savageAdvantage, fearlessRoar, tokenCount, tokenMarch);
+    const res = calculateFormations(troops, baseMarch, savageAdvantage, tokenCount, tokenMarch);
     setResult(res);
   }
 
@@ -355,7 +352,7 @@ export default function App() {
           background: "linear-gradient(135deg,#e8c060,#c8a040)",
           WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent",
         }}>
-          Kingshot Bear Trap Troop Formation Calculator
+          Troop Formation Calculator
         </h1>
         <div style={{ fontSize: 12, color: "#5a4a2a", marginTop: 8, display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
           <span>Total Troops:</span>
@@ -395,6 +392,7 @@ export default function App() {
         {/* Base March */}
         <div style={{ marginBottom: 12 }}>
           <div style={{ fontSize: 10, color: "#8a7a5a", marginBottom: 3, letterSpacing: 1 }}>BASE MARCH SIZE</div>
+          <div style={{ fontSize: 9, color: "#5a4a2a", marginBottom: 4 }}>Include Fearless Roar bonus if active</div>
           <input
             type="number"
             value={baseMarch || ""}
@@ -404,54 +402,30 @@ export default function App() {
           />
         </div>
 
-        {/* Bonus dropdowns */}
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
-
-          {/* Savage Advantage */}
-          <div>
-            <div style={{ fontSize: 10, color: "#8a7a5a", marginBottom: 3, letterSpacing: 1 }}>SAVAGE ADVANTAGE</div>
-            <div style={{ fontSize: 9, color: "#5a4a2a", marginBottom: 4 }}>Master Valora's Skill</div>
-            <select
-              value={savageAdvantage}
-              onChange={e => setSavageAdvantage(parseInt(e.target.value) || 0)}
-              style={selectStyle}
-            >
-              {SAVAGE_ADVANTAGE_OPTIONS.map(opt => (
-                <option key={opt} value={opt} style={{ background: "#161b22" }}>
-                  {opt === 0 ? "+0 (None)" : `+${fmt(opt)}`}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {/* Fearless Roar */}
-          <div>
-            <div style={{ fontSize: 10, color: "#8a7a5a", marginBottom: 3, letterSpacing: 1 }}>FEARLESS ROAR</div>
-            <div style={{ fontSize: 9, color: "#5a4a2a", marginBottom: 4 }}>Pet Mighty Bison</div>
-            <select
-              value={fearlessRoar}
-              onChange={e => setFearlessRoar(parseInt(e.target.value) || 0)}
-              style={selectStyle}
-            >
-              {FEARLESS_ROAR_OPTIONS.map(opt => (
-                <option key={opt} value={opt} style={{ background: "#161b22" }}>
-                  {opt === 0 ? "+0 (None)" : `+${fmt(opt)}`}
-                </option>
-              ))}
-            </select>
-          </div>
+        {/* Savage Advantage */}
+        <div style={{ marginBottom: 16 }}>
+          <div style={{ fontSize: 10, color: "#8a7a5a", marginBottom: 3, letterSpacing: 1 }}>SAVAGE ADVANTAGE</div>
+          <div style={{ fontSize: 9, color: "#5a4a2a", marginBottom: 4 }}>Master Valora's Skill — only applies to Chenko & Lead</div>
+          <select
+            value={savageAdvantage}
+            onChange={e => setSavageAdvantage(parseInt(e.target.value) || 0)}
+            style={selectStyle}
+          >
+            {SAVAGE_ADVANTAGE_OPTIONS.map(opt => (
+              <option key={opt} value={opt} style={{ background: "#161b22" }}>
+                {opt === 0 ? "+0 (None)" : `+${fmt(opt)}`}
+              </option>
+            ))}
+          </select>
         </div>
 
         {/* Effective March Breakdown */}
         <div style={{ fontSize: 11, color: "#5a4a2a", textAlign: "center", marginBottom: 16 }}>
           Effective march (Chenko &amp; Lead):{" "}
           <span style={{ color: "#c8a040", fontWeight: "bold" }}>{fmt(effectiveMarch)}</span>
-          {(savageAdvantage > 0 || fearlessRoar > 0) && (
+          {savageAdvantage > 0 && (
             <span style={{ color: "#6a5a3a" }}>
-              {" "}({fmt(baseMarch)}
-              {savageAdvantage > 0 && ` + ${fmt(savageAdvantage)}`}
-              {fearlessRoar    > 0 && ` + ${fmt(fearlessRoar)}`}
-              )
+              {" "}({fmt(baseMarch)} + {fmt(savageAdvantage)})
             </span>
           )}
         </div>
@@ -640,15 +614,14 @@ export default function App() {
               Summary
             </div>
             {[
-              ["Troops deployed",  fmt(deployedTotal),                                                          "#c8a040"],
-              ["Total available",  fmt(totalTroops),                                                            "#c8a040"],
-              ["Undeployed",       fmt(undeployed) + (undeployed === 0 ? " ✓" : ""),                           undeployed === 0 ? "#4aba4a" : "#e87020"],
-              ["Base march size",  fmt(baseMarch),                                                              "#c8a040"],
-              ["Savage Advantage", savageAdvantage > 0 ? `+${fmt(savageAdvantage)}` : "None",                  savageAdvantage > 0 ? "#c8a040" : "#5a4a2a"],
-              ["Fearless Roar",    fearlessRoar    > 0 ? `+${fmt(fearlessRoar)}`    : "None",                  fearlessRoar    > 0 ? "#c8a040" : "#5a4a2a"],
-              ["Effective march",  fmt(effectiveMarch),                                                         "#c8a040"],
-              ["Token joins",      tokenCount > 0 ? String(tokenCount) : "None",                               tokenCount > 0 ? "#c8a040" : "#5a4a2a"],
-              ["Token march cap",  tokenCount > 0 && tokenMarch > 0 ? fmt(tokenMarch) : "None",               tokenCount > 0 && tokenMarch > 0 ? "#c8a040" : "#5a4a2a"],
+              ["Troops deployed",  fmt(deployedTotal),                                                        "#c8a040"],
+              ["Total available",  fmt(totalTroops),                                                          "#c8a040"],
+              ["Undeployed",       fmt(undeployed) + (undeployed === 0 ? " ✓" : ""),                         undeployed === 0 ? "#4aba4a" : "#e87020"],
+              ["Base march size",  fmt(baseMarch),                                                            "#c8a040"],
+              ["Savage Advantage", savageAdvantage > 0 ? `+${fmt(savageAdvantage)}` : "None",                savageAdvantage > 0 ? "#c8a040" : "#5a4a2a"],
+              ["Effective march",  fmt(effectiveMarch),                                                       "#c8a040"],
+              ["Token joins",      tokenCount > 0 ? String(tokenCount) : "None",                             tokenCount > 0 ? "#c8a040" : "#5a4a2a"],
+              ["Token march cap",  tokenCount > 0 && tokenMarch > 0 ? fmt(tokenMarch) : "None",             tokenCount > 0 && tokenMarch > 0 ? "#c8a040" : "#5a4a2a"],
             ].map(([label, value, col]) => (
               <div key={label} style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginBottom: 6 }}>
                 <span style={{ color: "#8a7a5a" }}>{label}</span>
