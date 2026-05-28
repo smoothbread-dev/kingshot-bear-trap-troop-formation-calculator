@@ -17,6 +17,7 @@ A mobile-friendly React app that helps Kingshot alliance members plan and distri
 - Apex Archers split evenly between Amane & Yeonwoo before any deduction
 - Supreme Archers reserved exclusively for token joins
 - Undeployed troop tracking in the summary
+- **Pre-battle reminders** to activate all pet skills before Bear Trap begins
 
 ---
 
@@ -34,6 +35,17 @@ Formations are calculated in this order:
 
 > **Chenko & Lead** → save as **Ratio** presets in-game.
 > **Amane, Yeonwoo & Token Joins** → save as **Quantity** presets in-game.
+
+---
+
+## 💡 Pre-Battle Checklist
+
+The app displays two dismissible reminders to help you prepare:
+
+- **Top banner** — visible as soon as the page loads
+- **Inline reminder** — shown just above the Calculate button
+
+Both prompt you to activate all pet skills before Bear Trap begins to maximize damage output.
 
 ---
 
