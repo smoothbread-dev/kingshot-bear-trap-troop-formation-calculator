@@ -66,6 +66,104 @@ function sortedTroops(troopMap) {
 }
 
 // ─────────────────────────────────────────────
+//  REMINDER BANNER COMPONENT
+// ─────────────────────────────────────────────
+
+function ReminderBanner({ onDismiss }) {
+  return (
+    <div style={{
+      background: "linear-gradient(135deg, #1a1200, #2a1e00)",
+      border: "1px solid #6a4a00",
+      borderRadius: 10,
+      padding: "10px 14px",
+      marginBottom: 16,
+      display: "flex",
+      alignItems: "flex-start",
+      justifyContent: "space-between",
+      gap: 10,
+    }}>
+      <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
+        <span style={{ fontSize: 18, lineHeight: 1.3 }}>🐾</span>
+        <div>
+          <div style={{ fontSize: 12, fontWeight: "bold", color: "#e8a020", marginBottom: 3, letterSpacing: 0.5 }}>
+            Pre-Battle Reminder
+          </div>
+          <div style={{ fontSize: 11, color: "#b08030", lineHeight: 1.5 }}>
+            Activate <strong style={{ color: "#e8c060" }}>all pet skills</strong> before Bear Trap begins to maximize your damage output.
+          </div>
+        </div>
+      </div>
+      <button
+        onClick={onDismiss}
+        style={{
+          background: "none",
+          border: "none",
+          color: "#6a4a00",
+          fontSize: 16,
+          cursor: "pointer",
+          padding: "0 2px",
+          lineHeight: 1,
+          flexShrink: 0,
+          marginTop: 2,
+        }}
+        aria-label="Dismiss reminder"
+      >
+        ✕
+      </button>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────
+//  REMINDER INLINE COMPONENT
+// ─────────────────────────────────────────────
+
+function ReminderInline({ onDismiss }) {
+  return (
+    <div style={{
+      background: "linear-gradient(135deg, #1a1200, #2a1e00)",
+      border: "1px solid #6a4a00",
+      borderRadius: 10,
+      padding: "10px 14px",
+      marginBottom: 16,
+      display: "flex",
+      alignItems: "flex-start",
+      justifyContent: "space-between",
+      gap: 10,
+    }}>
+      <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
+        <span style={{ fontSize: 18, lineHeight: 1.3 }}>⚔️</span>
+        <div>
+          <div style={{ fontSize: 12, fontWeight: "bold", color: "#e8a020", marginBottom: 3, letterSpacing: 0.5 }}>
+            Ready to calculate?
+          </div>
+          <div style={{ fontSize: 11, color: "#b08030", lineHeight: 1.5 }}>
+            Double-check that <strong style={{ color: "#e8c060" }}>all pet skills are active</strong> before launching Bear Trap — don't leave damage on the table!
+          </div>
+        </div>
+      </div>
+      <button
+        onClick={onDismiss}
+        style={{
+          background: "none",
+          border: "none",
+          color: "#6a4a00",
+          fontSize: 16,
+          cursor: "pointer",
+          padding: "0 2px",
+          lineHeight: 1,
+          flexShrink: 0,
+          marginTop: 2,
+        }}
+        aria-label="Dismiss reminder"
+      >
+        ✕
+      </button>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────
 //  CORE CALCULATION
 // ─────────────────────────────────────────────
 
@@ -290,12 +388,14 @@ function calculateFormations(troops, baseMarchSize, savageAdvantage, tokenCount,
 // ─────────────────────────────────────────────
 
 export default function App() {
-  const [troops,          setTroops]          = useState(DEFAULT_TROOPS);
-  const [baseMarch,       setBaseMarch]       = useState(0);
-  const [savageAdvantage, setSavageAdvantage] = useState(0);
-  const [tokenCount,      setTokenCount]      = useState(0);
-  const [tokenMarch,      setTokenMarch]      = useState(0);
-  const [result,          setResult]          = useState(null);
+  const [troops,            setTroops]            = useState(DEFAULT_TROOPS);
+  const [baseMarch,         setBaseMarch]         = useState(0);
+  const [savageAdvantage,   setSavageAdvantage]   = useState(0);
+  const [tokenCount,        setTokenCount]        = useState(0);
+  const [tokenMarch,        setTokenMarch]        = useState(0);
+  const [result,            setResult]            = useState(null);
+  const [showTopReminder,   setShowTopReminder]   = useState(true);
+  const [showInlineReminder, setShowInlineReminder] = useState(true);
 
   const totalTroops    = Object.values(troops).reduce((a, b) => a + b, 0);
   const effectiveMarch = baseMarch + savageAdvantage;
@@ -343,7 +443,7 @@ export default function App() {
     }}>
 
       {/* ── Header ── */}
-      <div style={{ textAlign: "center", marginBottom: 28 }}>
+      <div style={{ textAlign: "center", marginBottom: 20 }}>
         <div style={{ fontSize: 11, letterSpacing: 4, color: "#6a5a3a", marginBottom: 6, textTransform: "uppercase" }}>
           ⚔ Battle Planner ⚔
         </div>
@@ -359,6 +459,11 @@ export default function App() {
           <span style={{ color: "#c8a040", fontSize: 14, fontWeight: "bold" }}>{fmt(totalTroops)}</span>
         </div>
       </div>
+
+      {/* ── Top Reminder Banner ── */}
+      {showTopReminder && (
+        <ReminderBanner onDismiss={() => setShowTopReminder(false)} />
+      )}
 
       {/* ── Troop Counts ── */}
       <div style={{ background: "#0f1318", border: "1px solid #2a2010", borderRadius: 12, padding: 16, marginBottom: 16 }}>
@@ -468,6 +573,11 @@ export default function App() {
           </div>
         </div>
       </div>
+
+      {/* ── Inline Reminder ── */}
+      {showInlineReminder && (
+        <ReminderInline onDismiss={() => setShowInlineReminder(false)} />
+      )}
 
       {/* ── Calculate Button ── */}
       <button
