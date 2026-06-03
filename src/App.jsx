@@ -41,8 +41,7 @@ const DEFAULT_TROOPS = {
   supremeArcher:   0,
 };
 
-const CHENKO_RATIO = { infantry: 10, cavalry: 10, archer: 80 };
-const LEAD_RATIO   = { infantry: 45, cavalry: 45, archer: 10 };
+const HERO_RATIO    = { infantry: 1, cavalry: 10, archer: 89 };
 
 const SAVAGE_ADVANTAGE_OPTIONS = Array.from({ length: 11 }, (_, i) => i * 3000);
 
@@ -178,75 +177,98 @@ function calculateFormations(troops, baseMarchSize, savageAdvantage, tokenCount,
     return v;
   }
 
-  function poolTotal() {
-    return Object.values(pool).reduce((a, b) => a + b, 0);
-  }
-
+  // ── Ratio-based deduction with graceful degradation, archers prioritised ──
   function deductByRatio(marchSize, ratioMap) {
     const t = {};
 
-    const infApex = deduct("apexInfantry",    Math.round(marchSize * ratioMap.infantry / 100));
-    const infSup  = deduct("supremeInfantry", Math.max(0, Math.round(marchSize * ratioMap.infantry / 100) - infApex));
-    if (infApex > 0) t["Apex Infantry"]    = (t["Apex Infantry"]    || 0) + infApex;
-    if (infSup  > 0) t["Supreme Infantry"] = (t["Supreme Infantry"] || 0) + infSup;
+    // ── Step A: Attempt archers first (highest priority) ──
+    const archerTarget = Math.round(marchSize * ratioMap.archer / 100);
 
-    const cavApex = deduct("apexCavalry",    Math.round(marchSize * ratioMap.cavalry / 100));
-    const cavSup  = deduct("supremeCavalry", Math.max(0, Math.round(marchSize * ratioMap.cavalry / 100) - cavApex));
-    if (cavApex > 0) t["Apex Cavalry"]    = (t["Apex Cavalry"]    || 0) + cavApex;
-    if (cavSup  > 0) t["Supreme Cavalry"] = (t["Supreme Cavalry"] || 0) + cavSup;
+    const archApex = deduct("apexArcher", archerTarget);
+    if (archApex > 0) t["Apex Archer"] = archApex;
 
-    const archApex = deduct("apexArcher",    Math.round(marchSize * ratioMap.archer / 100));
-    const archSup  = deduct("supremeArcher", Math.max(0, Math.round(marchSize * ratioMap.archer / 100) - archApex));
-    if (archApex > 0) t["Apex Archer"]    = (t["Apex Archer"]    || 0) + archApex;
-    if (archSup  > 0) t["Supreme Archer"] = (t["Supreme Archer"] || 0) + archSup;
+    const archSupTarget = Math.max(0, archerTarget - archApex);
+    const archSup = deduct("supremeArcher", archSupTarget);
+    if (archSup > 0) t["Supreme Archer"] = archSup;
+    
+    // ── Step B: Cavalry ──
+    const cavTarget = Math.round(marchSize * ratioMap.cavalry / 100);
+
+    const cavApex = deduct("apexCavalry", cavTarget);
+    if (cavApex > 0) t["Apex Cavalry"] = cavApex;
+
+    const cavSupTarget = Math.max(0, cavTarget - cavApex);
+    const cavSup = deduct("supremeCavalry", cavSupTarget);
+    if (cavSup > 0) t["Supreme Cavalry"] = cavSup;
+
+    // ── Step C: Infantry ──
+    const infTarget = Math.round(marchSize * ratioMap.infantry / 100);
+
+    const infApex = deduct("apexInfantry", infTarget);
+    if (infApex > 0) t["Apex Infantry"] = infApex;
+
+    const infSupTarget = Math.max(0, infTarget - infApex);
+    const infSup = deduct("supremeInfantry", infSupTarget);
+    if (infSup > 0) t["Supreme Infantry"] = infSup;
+
+    // ── Step D: Fill remaining slots — archers first, then cav, then inf ──
+    const allocated = Object.values(t).reduce((a, b) => a + b, 0);
+    let slotsLeft = marchSize - allocated;
+
+    if (slotsLeft > 0) {
+      // Try to fill with more archers first
+      const extraArchApex = deduct("apexArcher", slotsLeft);
+      if (extraArchApex > 0) {
+        t["Apex Archer"] = (t["Apex Archer"] || 0) + extraArchApex;
+        slotsLeft -= extraArchApex;
+      }
+    }
+
+    if (slotsLeft > 0) {
+      const extraArchSup = deduct("supremeArcher", slotsLeft);
+      if (extraArchSup > 0) {
+        t["Supreme Archer"] = (t["Supreme Archer"] || 0) + extraArchSup;
+        slotsLeft -= extraArchSup;
+      }
+    }
+
+    if (slotsLeft > 0) {
+      const extraCavApex = deduct("apexCavalry", slotsLeft);
+      if (extraCavApex > 0) {
+        t["Apex Cavalry"] = (t["Apex Cavalry"] || 0) + extraCavApex;
+        slotsLeft -= extraCavApex;
+      }
+    }
+
+    if (slotsLeft > 0) {
+      const extraCavSup = deduct("supremeCavalry", slotsLeft);
+      if (extraCavSup > 0) {
+        t["Supreme Cavalry"] = (t["Supreme Cavalry"] || 0) + extraCavSup;
+        slotsLeft -= extraCavSup;
+      }
+    }
+
+    if (slotsLeft > 0) {
+      const extraInfApex = deduct("apexInfantry", slotsLeft);
+      if (extraInfApex > 0) {
+        t["Apex Infantry"] = (t["Apex Infantry"] || 0) + extraInfApex;
+        slotsLeft -= extraInfApex;
+      }
+    }
+
+    if (slotsLeft > 0) {
+      const extraInfSup = deduct("supremeInfantry", slotsLeft);
+      if (extraInfSup > 0) {
+        t["Supreme Infantry"] = (t["Supreme Infantry"] || 0) + extraInfSup;
+        slotsLeft -= extraInfSup;
+      }
+    }
 
     const total = Object.values(t).reduce((a, b) => a + b, 0);
     return { troops: sortedTroops(t), total };
   }
 
-  function fillInfCav(slotsRemaining, t) {
-    if (slotsRemaining <= 0) return;
-
-    const fillKeys = ["apexInfantry", "apexCavalry", "supremeInfantry", "supremeCavalry"];
-    const fillPool  = fillKeys.reduce((a, k) => a + pool[k], 0);
-    if (fillPool === 0) return;
-
-    const canFill = Math.min(slotsRemaining, fillPool);
-
-    const raws   = {};
-    const allocs = {};
-    let floorSum = 0;
-    for (const k of fillKeys) {
-      raws[k]   = canFill * pool[k] / fillPool;
-      allocs[k] = Math.floor(raws[k]);
-      floorSum += allocs[k];
-    }
-
-    let gap = canFill - floorSum;
-    const sorted = fillKeys
-      .map(k => ({ k, frac: raws[k] - allocs[k] }))
-      .sort((a, b) => b.frac - a.frac);
-    for (let i = 0; i < gap; i++) allocs[sorted[i % fillKeys.length].k]++;
-
-    for (const k of fillKeys) {
-      const got = deduct(k, allocs[k]);
-      if (got > 0) t[LABEL_MAP[k]] = (t[LABEL_MAP[k]] || 0) + got;
-    }
-  }
-
-  function deductArcherHeavyWithShare(marchSize, archerShare) {
-    const t = {};
-
-    const apexArchersTaken = deduct("apexArcher", archerShare);
-    if (apexArchersTaken > 0) t["Apex Archer"] = apexArchersTaken;
-
-    const slotsRemaining = marchSize - apexArchersTaken;
-    fillInfCav(slotsRemaining, t);
-
-    const total = Object.values(t).reduce((a, b) => a + b, 0);
-    return { troops: sortedTroops(t), total, filled: total };
-  }
-
+  // ── Even token split — Supreme Archers guaranteed, Apex Archers never touched ──
   function deductEvenTokenSplit(shareSize, poolSnapshot, snapshotTotal) {
     const cap = tokenMarchSize > 0 ? Math.min(shareSize, tokenMarchSize) : shareSize;
 
@@ -256,28 +278,50 @@ function calculateFormations(troops, baseMarchSize, savageAdvantage, tokenCount,
 
     const t    = {};
     const keys = [
-      "apexInfantry", "apexCavalry", "apexArcher",
+      "apexInfantry", "apexCavalry",
       "supremeInfantry", "supremeCavalry", "supremeArcher",
+      // Note: apexArcher intentionally excluded — never touched by tokens
     ];
 
-    const raws   = {};
-    const allocs = {};
-    let floorSum = 0;
-    for (const k of keys) {
-      raws[k]   = cap * (poolSnapshot[k] / snapshotTotal);
-      allocs[k] = Math.floor(raws[k]);
-      floorSum += allocs[k];
-    }
+    // ── Guarantee Supreme Archers first ──
+    const supArchShare = Math.floor(
+      cap * (poolSnapshot.supremeArcher / snapshotTotal)
+    );
+    const gotSupArch = deduct("supremeArcher", supArchShare);
+    if (gotSupArch > 0) t["Supreme Archer"] = gotSupArch;
 
-    let gap = cap - floorSum;
-    const sorted = keys
-      .map(k => ({ k, frac: raws[k] - allocs[k] }))
-      .sort((a, b) => b.frac - a.frac);
-    for (let i = 0; i < gap; i++) allocs[sorted[i % keys.length].k]++;
+    let slotsLeft = cap - gotSupArch;
 
-    for (const k of keys) {
-      const got = deduct(k, allocs[k]);
-      if (got > 0) t[LABEL_MAP[k]] = (t[LABEL_MAP[k]] || 0) + got;
+    // ── Spread remaining slots proportionally across non-archer types ──
+    const nonArcherKeys = [
+      "apexInfantry", "apexCavalry",
+      "supremeInfantry", "supremeCavalry",
+    ];
+    const nonArcherTotal = nonArcherKeys.reduce(
+      (a, k) => a + (pool[k] || 0), 0
+    );
+
+    if (slotsLeft > 0 && nonArcherTotal > 0) {
+      const raws   = {};
+      const allocs = {};
+      let floorSum = 0;
+
+      for (const k of nonArcherKeys) {
+        raws[k]   = slotsLeft * (pool[k] / nonArcherTotal);
+        allocs[k] = Math.floor(raws[k]);
+        floorSum += allocs[k];
+      }
+
+      let gap = slotsLeft - floorSum;
+      const sorted = nonArcherKeys
+        .map(k => ({ k, frac: raws[k] - allocs[k] }))
+        .sort((a, b) => b.frac - a.frac);
+      for (let i = 0; i < gap; i++) allocs[sorted[i % nonArcherKeys.length].k]++;
+
+      for (const k of nonArcherKeys) {
+        const got = deduct(k, allocs[k]);
+        if (got > 0) t[LABEL_MAP[k]] = (t[LABEL_MAP[k]] || 0) + got;
+      }
     }
 
     const total = Object.values(t).reduce((a, b) => a + b, 0);
@@ -287,84 +331,78 @@ function calculateFormations(troops, baseMarchSize, savageAdvantage, tokenCount,
   const formations = [];
 
   // ── STEP 1: Chenko ──
-  const chenkoResult = deductByRatio(effectiveMarch, CHENKO_RATIO);
+  const chenkoResult = deductByRatio(effectiveMarch, HERO_RATIO);
   formations.push({
     label:         "Rally Join 1",
     type:          "join",
     hero:          "Chenko",
     preset:        "RATIO",
-    ratioLabel:    "10% Inf / 10% Cav / 80% Arch",
+    ratioLabel:    "1% Inf / 10% Cav / 89% Arch",
     effectiveMarch,
     baseMarch:     baseMarchSize,
     troops:        chenkoResult.troops,
     total:         chenkoResult.total,
   });
 
-  // ── STEP 2: Lead ──
-  const leadResult = deductByRatio(effectiveMarch, LEAD_RATIO);
-  formations.push({
-    label:         "Rally Lead",
-    type:          "lead",
-    hero:          null,
-    preset:        "RATIO",
-    ratioLabel:    "45% Inf / 45% Cav / 10% Arch",
-    effectiveMarch,
-    baseMarch:     baseMarchSize,
-    troops:        leadResult.troops,
-    total:         leadResult.total,
-  });
-
-  // ── STEP 3: Reserve Supreme Archers for token joins ──
-  let reservedSupremePerToken = 0;
-  if (tokenCount > 0 && pool.supremeArcher > 0) {
-    reservedSupremePerToken = Math.floor(pool.supremeArcher / tokenCount);
-    const totalReserved     = reservedSupremePerToken * tokenCount;
-    deduct("supremeArcher", totalReserved);
-  }
-
-  // ── STEP 4: Pre-split Apex Archers between Amane & Yeonwoo ──
-  const totalApexArchersAvailable = pool.apexArcher;
-  const amaneArcherShare   = Math.ceil(totalApexArchersAvailable / 2);
-  const yeonwooArcherShare = Math.floor(totalApexArchersAvailable / 2);
-
-  // ── STEP 5: Amane ──
-  const amaneResult = deductArcherHeavyWithShare(baseMarchSize, amaneArcherShare);
+  // ── STEP 2: Yeonwoo ──
+  const yeonwooResult = deductByRatio(effectiveMarch, HERO_RATIO);
   formations.push({
     label:      "Rally Join 2",
     type:       "join",
-    hero:       "Amane",
-    preset:     "QUANTITY",
-    baseMarch:  baseMarchSize,
-    troops:     amaneResult.troops,
-    total:      amaneResult.total,
-    filled:     amaneResult.filled,
-  });
-
-  // ── STEP 6: Yeonwoo ──
-  const yeonwooResult = deductArcherHeavyWithShare(baseMarchSize, yeonwooArcherShare);
-  formations.push({
-    label:      "Rally Join 3",
-    type:       "join",
     hero:       "Yeonwoo",
-    preset:     "QUANTITY",
+    preset:     "RATIO",
+    ratioLabel: "1% Inf / 10% Cav / 89% Arch",
+    effectiveMarch,
     baseMarch:  baseMarchSize,
     troops:     yeonwooResult.troops,
     total:      yeonwooResult.total,
-    filled:     yeonwooResult.filled,
   });
 
-  // ── STEP 7: Token Joins ──
-  pool.supremeArcher += reservedSupremePerToken * tokenCount;
+  // ── STEP 3: Amane ──
+  const amaneResult = deductByRatio(effectiveMarch, HERO_RATIO);
+  formations.push({
+    label:      "Rally Join 3",
+    type:       "join",
+    hero:       "Amane",
+    preset:     "RATIO",
+    ratioLabel: "1% Inf / 10% Cav / 89% Arch",
+    effectiveMarch,
+    baseMarch:  baseMarchSize,
+    troops:     amaneResult.troops,
+    total:      amaneResult.total,
+  });
 
+  // ── STEP 4: Token Joins ──
+  // Tokens take whatever Supreme Archers remain — no upfront reservation
+  // Apex Archers are never touched by token joins
   const tokenPoolSnapshot  = { ...pool };
-  const tokenSnapshotTotal = poolTotal();
-  const shareSize          = tokenCount > 0 ? Math.floor(tokenSnapshotTotal / tokenCount) : 0;
+  // Exclude Apex Archers from snapshot total so they are never allocated
+  const tokenSnapshotTotal =
+    pool.apexInfantry +
+    pool.apexCavalry  +
+    pool.supremeInfantry +
+    pool.supremeCavalry  +
+    pool.supremeArcher;
+
+  const shareSize = tokenCount > 0
+    ? Math.floor(tokenSnapshotTotal / tokenCount)
+    : 0;
 
   for (let i = 0; i < tokenCount; i++) {
     const isLast    = i === tokenCount - 1;
-    const thisShare = isLast ? Math.max(0, poolTotal()) : shareSize;
+    const remaining =
+      pool.apexInfantry +
+      pool.apexCavalry  +
+      pool.supremeInfantry +
+      pool.supremeCavalry  +
+      pool.supremeArcher;
+    const thisShare = isLast ? Math.max(0, remaining) : shareSize;
 
-    const tokenResult = deductEvenTokenSplit(thisShare, tokenPoolSnapshot, tokenSnapshotTotal);
+    const tokenResult = deductEvenTokenSplit(
+      thisShare,
+      tokenPoolSnapshot,
+      tokenSnapshotTotal
+    );
     formations.push({
       label:          `Token Join ${i + 1}`,
       type:           "token",
@@ -379,7 +417,6 @@ function calculateFormations(troops, baseMarchSize, savageAdvantage, tokenCount,
   }
 
   const remaining = { ...pool };
-
   return { formations, remaining };
 }
 
@@ -408,7 +445,6 @@ export default function App() {
   const C = {
     join:  { bg: "#1a2a1a", border: "#2d5a2d", badge: "#3d7a3d", text: "#7dba7d" },
     token: { bg: "#1a1a2a", border: "#2d2d5a", badge: "#3d3d7a", text: "#7d7dba" },
-    lead:  { bg: "#2a1a0a", border: "#5a3a0a", badge: "#8a5a0a", text: "#e8a020" },
   };
 
   const heroColors = {
@@ -510,7 +546,7 @@ export default function App() {
         {/* Savage Advantage */}
         <div style={{ marginBottom: 16 }}>
           <div style={{ fontSize: 10, color: "#8a7a5a", marginBottom: 3, letterSpacing: 1 }}>SAVAGE ADVANTAGE</div>
-          <div style={{ fontSize: 9, color: "#5a4a2a", marginBottom: 4 }}>Master Valora's Skill — only applies to Chenko & Lead</div>
+          <div style={{ fontSize: 9, color: "#5a4a2a", marginBottom: 4 }}>Master Valora's Skill — applies to all ratio marches</div>
           <select
             value={savageAdvantage}
             onChange={e => setSavageAdvantage(parseInt(e.target.value) || 0)}
@@ -526,7 +562,7 @@ export default function App() {
 
         {/* Effective March Breakdown */}
         <div style={{ fontSize: 11, color: "#5a4a2a", textAlign: "center", marginBottom: 16 }}>
-          Effective march (Chenko &amp; Lead):{" "}
+          Effective march (all ratio marches):{" "}
           <span style={{ color: "#c8a040", fontWeight: "bold" }}>{fmt(effectiveMarch)}</span>
           {savageAdvantage > 0 && (
             <span style={{ color: "#6a5a3a" }}>
@@ -621,9 +657,6 @@ export default function App() {
                     {f.type === "token" && (
                       <span style={{ fontSize: 10, padding: "2px 8px", background: c.badge, borderRadius: 10, color: "#9090d0" }}>TOKEN</span>
                     )}
-                    {f.type === "lead" && (
-                      <span style={{ fontSize: 10, padding: "2px 8px", background: c.badge, borderRadius: 10, color: "#e8a020" }}>LEAD</span>
-                    )}
 
                     <span style={{
                       fontSize: 10, padding: "2px 8px", borderRadius: 10,
@@ -642,13 +675,6 @@ export default function App() {
                   <div style={{ fontSize: 10, color: "#6a5a3a", marginBottom: 8, letterSpacing: 0.5 }}>
                     Preset ratio: <span style={{ color: "#c8a040" }}>{f.ratioLabel}</span>
                     {" · "}Effective march: <span style={{ color: "#c8a040" }}>{fmt(f.effectiveMarch)}</span>
-                  </div>
-                )}
-
-                {!isRatio && f.type === "join" && (
-                  <div style={{ fontSize: 10, color: "#6a5a3a", marginBottom: 8, letterSpacing: 0.5 }}>
-                    Saved at base march: <span style={{ color: "#c8a040" }}>{fmt(f.baseMarch)}</span>
-                    {" · "}Apex Archers split evenly with partner · No bonus march applied
                   </div>
                 )}
 
@@ -682,7 +708,7 @@ export default function App() {
 
                 {isRatio && (
                   <div style={{ marginTop: 8, fontSize: 11, color: "#4a8a4a", background: "#0a1a0a", border: "1px solid #2a4a2a", borderRadius: 6, padding: "6px 10px" }}>
-                    💡 Save as a <strong>Ratio preset</strong> in-game. Quantities shown are previews at effective march size.
+                    💡 Save as a <strong>Ratio preset</strong> in-game. Quantities shown are previews at effective march size ({fmt(f.effectiveMarch)}).
                   </div>
                 )}
 
