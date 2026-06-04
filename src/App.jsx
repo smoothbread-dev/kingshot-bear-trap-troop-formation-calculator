@@ -164,10 +164,76 @@ function ReminderInline({ onDismiss }) {
 }
 
 // ─────────────────────────────────────────────
+//  LEAD MARCH TOGGLE COMPONENT
+// ─────────────────────────────────────────────
+
+function LeadMarchToggle({ includeLead, onToggle }) {
+  return (
+    <div style={{
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "space-between",
+      padding: "12px 0",
+      borderTop: "1px solid #2a2010",
+      borderBottom: "1px solid #2a2010",
+      marginBottom: 16,
+    }}>
+      <div>
+        <div style={{ fontSize: 10, color: "#8a7a5a", letterSpacing: 1 }}>
+          INCLUDE LEAD MARCH
+        </div>
+        <div style={{ fontSize: 9, color: "#5a4a2a", marginTop: 3 }}>
+          Deducts troops using 45% Inf / 45% Cav / 10% Arch ratio
+        </div>
+      </div>
+
+      <button
+        onClick={onToggle}
+        role="switch"
+        aria-checked={includeLead}
+        aria-label="Toggle lead march"
+        style={{
+          width: 44,
+          height: 24,
+          borderRadius: 12,
+          border: "none",
+          background: includeLead
+            ? "linear-gradient(135deg, #8a6010, #c8a040)"
+            : "#2a2a2a",
+          cursor: "pointer",
+          position: "relative",
+          transition: "background 0.2s",
+          flexShrink: 0,
+        }}
+      >
+        <span style={{
+          position: "absolute",
+          top: 3,
+          left: includeLead ? 23 : 3,
+          width: 18,
+          height: 18,
+          borderRadius: "50%",
+          background: "#fff",
+          transition: "left 0.2s",
+          display: "block",
+        }} />
+      </button>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────
 //  CORE CALCULATION
 // ─────────────────────────────────────────────
 
-function calculateFormations(troops, baseMarchSize, savageAdvantage, tokenCount, tokenMarchSize) {
+function calculateFormations(
+  troops,
+  baseMarchSize,
+  savageAdvantage,
+  tokenCount,
+  tokenMarchSize,
+  includeLead,        // ← new param
+) {
   const effectiveMarch = baseMarchSize + savageAdvantage;
 
   const pool = { ...troops };
@@ -300,19 +366,21 @@ function calculateFormations(troops, baseMarchSize, savageAdvantage, tokenCount,
     total:         chenkoResult.total,
   });
 
-  // ── STEP 2: Lead ──
-  const leadResult = deductByRatio(effectiveMarch, LEAD_RATIO);
-  formations.push({
-    label:         "Rally Lead",
-    type:          "lead",
-    hero:          null,
-    preset:        "RATIO",
-    ratioLabel:    "45% Inf / 45% Cav / 10% Arch",
-    effectiveMarch,
-    baseMarch:     baseMarchSize,
-    troops:        leadResult.troops,
-    total:         leadResult.total,
-  });
+  // ── STEP 2: Lead (conditional) ──
+  if (includeLead) {
+    const leadResult = deductByRatio(effectiveMarch, LEAD_RATIO);
+    formations.push({
+      label:         "Rally Lead",
+      type:          "lead",
+      hero:          null,
+      preset:        "RATIO",
+      ratioLabel:    "45% Inf / 45% Cav / 10% Arch",
+      effectiveMarch,
+      baseMarch:     baseMarchSize,
+      troops:        leadResult.troops,
+      total:         leadResult.total,
+    });
+  }
 
   // ── STEP 3: Reserve Supreme Archers for token joins ──
   let reservedSupremePerToken = 0;
@@ -322,28 +390,15 @@ function calculateFormations(troops, baseMarchSize, savageAdvantage, tokenCount,
     deduct("supremeArcher", totalReserved);
   }
 
-  // ── STEP 4: Pre-split Apex Archers between Amane & Yeonwoo ──
+  // ── STEP 4: Pre-split Apex Archers between Yeonwoo & Amane ──
   const totalApexArchersAvailable = pool.apexArcher;
-  const amaneArcherShare   = Math.ceil(totalApexArchersAvailable / 2);
-  const yeonwooArcherShare = Math.floor(totalApexArchersAvailable / 2);
+  const yeonwooArcherShare = Math.ceil(totalApexArchersAvailable / 2);
+  const amaneArcherShare   = Math.floor(totalApexArchersAvailable / 2);
 
-  // ── STEP 5: Amane ──
-  const amaneResult = deductArcherHeavyWithShare(baseMarchSize, amaneArcherShare);
-  formations.push({
-    label:      "Rally Join 2",
-    type:       "join",
-    hero:       "Amane",
-    preset:     "QUANTITY",
-    baseMarch:  baseMarchSize,
-    troops:     amaneResult.troops,
-    total:      amaneResult.total,
-    filled:     amaneResult.filled,
-  });
-
-  // ── STEP 6: Yeonwoo ──
+  // ── STEP 5: Yeonwoo ──
   const yeonwooResult = deductArcherHeavyWithShare(baseMarchSize, yeonwooArcherShare);
   formations.push({
-    label:      "Rally Join 3",
+    label:      "Rally Join 2",
     type:       "join",
     hero:       "Yeonwoo",
     preset:     "QUANTITY",
@@ -351,6 +406,19 @@ function calculateFormations(troops, baseMarchSize, savageAdvantage, tokenCount,
     troops:     yeonwooResult.troops,
     total:      yeonwooResult.total,
     filled:     yeonwooResult.filled,
+  });
+
+  // ── STEP 6: Amane ──
+  const amaneResult = deductArcherHeavyWithShare(baseMarchSize, amaneArcherShare);
+  formations.push({
+    label:      "Rally Join 3",
+    type:       "join",
+    hero:       "Amane",
+    preset:     "QUANTITY",
+    baseMarch:  baseMarchSize,
+    troops:     amaneResult.troops,
+    total:      amaneResult.total,
+    filled:     amaneResult.filled,
   });
 
   // ── STEP 7: Token Joins ──
@@ -388,13 +456,14 @@ function calculateFormations(troops, baseMarchSize, savageAdvantage, tokenCount,
 // ─────────────────────────────────────────────
 
 export default function App() {
-  const [troops,            setTroops]            = useState(DEFAULT_TROOPS);
-  const [baseMarch,         setBaseMarch]         = useState(0);
-  const [savageAdvantage,   setSavageAdvantage]   = useState(0);
-  const [tokenCount,        setTokenCount]        = useState(0);
-  const [tokenMarch,        setTokenMarch]        = useState(0);
-  const [result,            setResult]            = useState(null);
-  const [showTopReminder,   setShowTopReminder]   = useState(true);
+  const [troops,             setTroops]             = useState(DEFAULT_TROOPS);
+  const [baseMarch,          setBaseMarch]          = useState(0);
+  const [savageAdvantage,    setSavageAdvantage]    = useState(0);
+  const [tokenCount,         setTokenCount]         = useState(0);
+  const [tokenMarch,         setTokenMarch]         = useState(0);
+  const [includeLead,        setIncludeLead]        = useState(false);
+  const [result,             setResult]             = useState(null);
+  const [showTopReminder,    setShowTopReminder]    = useState(true);
   const [showInlineReminder, setShowInlineReminder] = useState(true);
 
   const totalTroops    = Object.values(troops).reduce((a, b) => a + b, 0);
@@ -432,9 +501,25 @@ export default function App() {
 
   function handleCalculate() {
     if (!baseMarch || baseMarch <= 0) return;
-    const res = calculateFormations(troops, baseMarch, savageAdvantage, tokenCount, tokenMarch);
+    const res = calculateFormations(
+      troops,
+      baseMarch,
+      savageAdvantage,
+      tokenCount,
+      tokenMarch,
+      includeLead,
+    );
     setResult(res);
   }
+
+  // ── Dynamic label helpers ──
+  const effectiveMarchLabel = includeLead
+    ? "Effective march (Chenko & Lead)"
+    : "Effective march (Chenko)";
+
+  const savageAdvantageHint = includeLead
+    ? "Master Valora's Skill — only applies to Chenko & Lead"
+    : "Master Valora's Skill — only applies to Chenko";
 
   return (
     <div style={{
@@ -510,7 +595,8 @@ export default function App() {
         {/* Savage Advantage */}
         <div style={{ marginBottom: 16 }}>
           <div style={{ fontSize: 10, color: "#8a7a5a", marginBottom: 3, letterSpacing: 1 }}>SAVAGE ADVANTAGE</div>
-          <div style={{ fontSize: 9, color: "#5a4a2a", marginBottom: 4 }}>Master Valora's Skill — only applies to Chenko & Lead</div>
+          {/* ── Dynamic hint ── */}
+          <div style={{ fontSize: 9, color: "#5a4a2a", marginBottom: 4 }}>{savageAdvantageHint}</div>
           <select
             value={savageAdvantage}
             onChange={e => setSavageAdvantage(parseInt(e.target.value) || 0)}
@@ -526,7 +612,8 @@ export default function App() {
 
         {/* Effective March Breakdown */}
         <div style={{ fontSize: 11, color: "#5a4a2a", textAlign: "center", marginBottom: 16 }}>
-          Effective march (Chenko &amp; Lead):{" "}
+          {/* ── Dynamic label ── */}
+          {effectiveMarchLabel}:{" "}
           <span style={{ color: "#c8a040", fontWeight: "bold" }}>{fmt(effectiveMarch)}</span>
           {savageAdvantage > 0 && (
             <span style={{ color: "#6a5a3a" }}>
@@ -534,6 +621,12 @@ export default function App() {
             </span>
           )}
         </div>
+
+        {/* ── Lead March Toggle ── */}
+        <LeadMarchToggle
+          includeLead={includeLead}
+          onToggle={() => setIncludeLead(p => !p)}
+        />
 
         {/* Token Settings */}
         <div style={{ borderTop: "1px solid #2a2010", paddingTop: 14 }}>
@@ -724,14 +817,16 @@ export default function App() {
               Summary
             </div>
             {[
-              ["Troops deployed",  fmt(deployedTotal),                                                        "#c8a040"],
-              ["Total available",  fmt(totalTroops),                                                          "#c8a040"],
-              ["Undeployed",       fmt(undeployed) + (undeployed === 0 ? " ✓" : ""),                         undeployed === 0 ? "#4aba4a" : "#e87020"],
-              ["Base march size",  fmt(baseMarch),                                                            "#c8a040"],
-              ["Savage Advantage", savageAdvantage > 0 ? `+${fmt(savageAdvantage)}` : "None",                savageAdvantage > 0 ? "#c8a040" : "#5a4a2a"],
-              ["Effective march",  fmt(effectiveMarch),                                                       "#c8a040"],
-              ["Token joins",      tokenCount > 0 ? String(tokenCount) : "None",                             tokenCount > 0 ? "#c8a040" : "#5a4a2a"],
-              ["Token march cap",  tokenCount > 0 && tokenMarch > 0 ? fmt(tokenMarch) : "None",             tokenCount > 0 && tokenMarch > 0 ? "#c8a040" : "#5a4a2a"],
+              ["Troops deployed",   fmt(deployedTotal),                                                                    "#c8a040"],
+              ["Total available",   fmt(totalTroops),                                                                      "#c8a040"],
+              ["Undeployed",        fmt(undeployed) + (undeployed === 0 ? " ✓" : ""),                                     undeployed === 0 ? "#4aba4a" : "#e87020"],
+              ["Base march size",   fmt(baseMarch),                                                                        "#c8a040"],
+              ["Savage Advantage",  savageAdvantage > 0 ? `+${fmt(savageAdvantage)}` : "None",                            savageAdvantage > 0 ? "#c8a040" : "#5a4a2a"],
+              // ── Dynamic label ──
+              [effectiveMarchLabel, fmt(effectiveMarch),                                                                   "#c8a040"],
+              ["Lead march",        includeLead ? "Included" : "Excluded",                                                 includeLead ? "#4aba4a" : "#5a4a2a"],
+              ["Token joins",       tokenCount > 0 ? String(tokenCount) : "None",                                         tokenCount > 0 ? "#c8a040" : "#5a4a2a"],
+              ["Token march cap",   tokenCount > 0 && tokenMarch > 0 ? fmt(tokenMarch) : "None",                         tokenCount > 0 && tokenMarch > 0 ? "#c8a040" : "#5a4a2a"],
             ].map(([label, value, col]) => (
               <div key={label} style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginBottom: 6 }}>
                 <span style={{ color: "#8a7a5a" }}>{label}</span>
