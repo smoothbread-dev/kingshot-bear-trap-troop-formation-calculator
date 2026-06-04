@@ -223,6 +223,63 @@ function LeadMarchToggle({ includeLead, onToggle }) {
 }
 
 // ─────────────────────────────────────────────
+//  YEONWOO RATIO TOGGLE COMPONENT
+// ─────────────────────────────────────────────
+function YeonwooRatioToggle({ yeonwooRatio, onToggle }) {
+  return (
+    <div style={{
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "space-between",
+      padding: "12px 0",
+      borderBottom: "1px solid #2a2010",
+      marginBottom: 16,
+    }}>
+      <div>
+        <div style={{ fontSize: 10, color: "#8a7a5a", letterSpacing: 1 }}>
+          YEONWOO — RATIO MODE
+        </div>
+        <div style={{ fontSize: 9, color: "#5a4a2a", marginTop: 3 }}>
+          Uses Chenko ratio (1% Inf / 10% Cav / 89% Arch) at effective march
+        </div>
+      </div>
+
+      <button
+        onClick={onToggle}
+        role="switch"
+        aria-checked={yeonwooRatio}
+        aria-label="Toggle Yeonwoo ratio mode"
+        style={{
+          width: 44,
+          height: 24,
+          borderRadius: 12,
+          border: "none",
+          background: yeonwooRatio
+            ? "linear-gradient(135deg, #6010a0, #a020e8)"
+            : "#2a2a2a",
+          cursor: "pointer",
+          position: "relative",
+          transition: "background 0.2s",
+          flexShrink: 0,
+        }}
+      >
+        <span style={{
+          position: "absolute",
+          top: 3,
+          left: yeonwooRatio ? 23 : 3,
+          width: 18,
+          height: 18,
+          borderRadius: "50%",
+          background: "#fff",
+          transition: "left 0.2s",
+          display: "block",
+        }} />
+      </button>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────
 //  CORE CALCULATION
 // ─────────────────────────────────────────────
 
@@ -232,7 +289,8 @@ function calculateFormations(
   savageAdvantage,
   tokenCount,
   tokenMarchSize,
-  includeLead,        // ← new param
+  includeLead,
+  yeonwooRatio,
 ) {
   const effectiveMarch = baseMarchSize + savageAdvantage;
 
@@ -392,33 +450,67 @@ function calculateFormations(
 
   // ── STEP 4: Pre-split Apex Archers between Yeonwoo & Amane ──
   const totalApexArchersAvailable = pool.apexArcher;
-  const yeonwooArcherShare = Math.ceil(totalApexArchersAvailable / 2);
-  const amaneArcherShare   = Math.floor(totalApexArchersAvailable / 2);
+  let yeonwooArcherShare = 0;
+  let amaneArcherShare   = 0;
+
+  if (!yeonwooRatio) {
+    yeonwooArcherShare = Math.ceil(totalApexArchersAvailable / 2);
+    amaneArcherShare   = Math.floor(totalApexArchersAvailable / 2);
+  }
+  // When yeonwooRatio = true, Yeonwoo pulls from the full pool via ratio,
+  // so Amane gets whatever Apex Archers remain after Yeonwoo's deduction.
 
   // ── STEP 5: Yeonwoo ──
-  const yeonwooResult = deductArcherHeavyWithShare(baseMarchSize, yeonwooArcherShare);
-  formations.push({
-    label:      "Rally Join 2",
-    type:       "join",
-    hero:       "Yeonwoo",
-    preset:     "QUANTITY",
-    baseMarch:  baseMarchSize,
-    troops:     yeonwooResult.troops,
-    total:      yeonwooResult.total,
-    filled:     yeonwooResult.filled,
-  });
+  let yeonwooResult;
+  if (yeonwooRatio) {
+    // Ratio mode — same as Chenko, uses effectiveMarch
+    yeonwooResult = deductByRatio(effectiveMarch, CHENKO_RATIO);
+    const hitMax = yeonwooResult.total >= effectiveMarch;
+    formations.push({
+      label:         "Rally Join 2",
+      type:          "join",
+      hero:          "Yeonwoo",
+      preset:        "RATIO",
+      ratioLabel:    "1% Inf / 10% Cav / 89% Arch",
+      effectiveMarch,
+      baseMarch:     baseMarchSize,
+      troops:        yeonwooResult.troops,
+      total:         yeonwooResult.total,
+      hitMax,                              // ← true = full, false = shortfall
+      shortfall:     effectiveMarch - yeonwooResult.total,  // ← how many missing
+    });
+  } else {
+    // Quantity mode — archer heavy with pre-split share
+    yeonwooResult = deductArcherHeavyWithShare(baseMarchSize, yeonwooArcherShare);
+    formations.push({
+      label:      "Rally Join 2",
+      type:       "join",
+      hero:       "Yeonwoo",
+      preset:     "QUANTITY",
+      baseMarch:  baseMarchSize,
+      troops:     yeonwooResult.troops,
+      total:      yeonwooResult.total,
+      filled:     yeonwooResult.filled,
+    });
+  }
 
   // ── STEP 6: Amane ──
-  const amaneResult = deductArcherHeavyWithShare(baseMarchSize, amaneArcherShare);
+  // When Yeonwoo is Ratio, amaneArcherShare = 0 so full remaining pool is used
+  const amaneApexArchers = yeonwooRatio
+    ? pool.apexArcher          // full remaining Apex Archers
+    : amaneArcherShare;
+
+  const amaneResult = deductArcherHeavyWithShare(baseMarchSize, amaneApexArchers);
   formations.push({
-    label:      "Rally Join 3",
-    type:       "join",
-    hero:       "Amane",
-    preset:     "QUANTITY",
-    baseMarch:  baseMarchSize,
-    troops:     amaneResult.troops,
-    total:      amaneResult.total,
-    filled:     amaneResult.filled,
+    label:         "Rally Join 3",
+    type:          "join",
+    hero:          "Amane",
+    preset:        "QUANTITY",
+    baseMarch:     baseMarchSize,
+    yeonwooRatio,              // ← passed through so card can update its info line
+    troops:        amaneResult.troops,
+    total:         amaneResult.total,
+    filled:        amaneResult.filled,
   });
 
   // ── STEP 7: Token Joins ──
@@ -462,6 +554,7 @@ export default function App() {
   const [tokenCount,         setTokenCount]         = useState(0);
   const [tokenMarch,         setTokenMarch]         = useState(0);
   const [includeLead,        setIncludeLead]        = useState(false);
+  const [yeonwooRatio,       setYeonwooRatio]       = useState(false);
   const [result,             setResult]             = useState(null);
   const [showTopReminder,    setShowTopReminder]    = useState(true);
   const [showInlineReminder, setShowInlineReminder] = useState(true);
@@ -508,18 +601,31 @@ export default function App() {
       tokenCount,
       tokenMarch,
       includeLead,
+      yeonwooRatio,
     );
     setResult(res);
   }
 
   // ── Dynamic label helpers ──
-  const effectiveMarchLabel = includeLead
-    ? "Effective march (Chenko & Lead)"
-    : "Effective march (Chenko)";
+  const savageAdvantageHint = (() => {
+    const parts = ["Chenko"];
+    if (includeLead)  parts.push("Lead");
+    if (yeonwooRatio) parts.push("Yeonwoo");
+    const joined = parts.length === 1
+      ? parts[0]
+      : parts.slice(0, -1).join(", ") + " & " + parts[parts.length - 1];
+    return `Master Valora's Skill — only applies to ${joined}`;
+  })();
 
-  const savageAdvantageHint = includeLead
-    ? "Master Valora's Skill — only applies to Chenko & Lead"
-    : "Master Valora's Skill — only applies to Chenko";
+  const effectiveMarchLabel = (() => {
+    const parts = ["Chenko"];
+    if (includeLead)  parts.push("Lead");
+    if (yeonwooRatio) parts.push("Yeonwoo");
+    const joined = parts.length === 1
+      ? parts[0]
+      : parts.slice(0, -1).join(", ") + " & " + parts[parts.length - 1];
+    return `Effective march (${joined})`;
+  })();
 
   return (
     <div style={{
@@ -626,6 +732,12 @@ export default function App() {
         <LeadMarchToggle
           includeLead={includeLead}
           onToggle={() => setIncludeLead(p => !p)}
+        />
+
+        {/* ── Yeonwoo Ratio Toggle ── */}
+        <YeonwooRatioToggle
+          yeonwooRatio={yeonwooRatio}
+          onToggle={() => setYeonwooRatio(p => !p)}
         />
 
         {/* Token Settings */}
@@ -741,9 +853,42 @@ export default function App() {
                 {!isRatio && f.type === "join" && (
                   <div style={{ fontSize: 10, color: "#6a5a3a", marginBottom: 8, letterSpacing: 0.5 }}>
                     Saved at base march: <span style={{ color: "#c8a040" }}>{fmt(f.baseMarch)}</span>
-                    {" · "}Apex Archers split evenly with partner · No bonus march applied
+                    {" · "}
+                    {f.hero === "Amane" && f.yeonwooRatio
+                      ? "Apex Archers: full remaining pool"
+                      : "Apex Archers split evenly with partner"
+                    }
+                    {" · "}No bonus march applied
                   </div>
                 )}
+
+                {/* ── Yeonwoo Ratio shortfall warning ── */}
+                {f.hero === "Yeonwoo" && f.preset === "RATIO" && !f.hitMax && (
+                  <div style={{
+                    display:      "flex",
+                    alignItems:   "flex-start",
+                    gap:          8,
+                    background:   "#2a1500",
+                    border:       "1px solid #a020e8",
+                    borderRadius: 8,
+                    padding:      "8px 12px",
+                    marginBottom: 8,
+                    fontSize:     10,
+                    color:        "#d080ff",
+                    lineHeight:   1.5,
+                  }}>
+                    <span style={{ fontSize: 14, flexShrink: 0 }}>⚠️</span>
+                    <span>
+                      <strong>March not full</strong> — Ratio mode is short by{" "}
+                      <span style={{ color: "#e8a0ff", fontWeight: 700 }}>
+                        {fmt(f.shortfall)}
+                      </span>{" "}
+                      troops after Chenko's deduction.{" "}
+                      Consider switching Yeonwoo to <strong>Quantity mode</strong> to
+                      maximise her march using the remaining pool.
+                    </span>
+                  </div>
+                )}                                                   
 
                 {f.type === "token" && (
                   <div style={{ fontSize: 10, color: "#6a5a3a", marginBottom: 8, letterSpacing: 0.5 }}>
@@ -825,6 +970,7 @@ export default function App() {
               // ── Dynamic label ──
               [effectiveMarchLabel, fmt(effectiveMarch),                                                                   "#c8a040"],
               ["Lead march",        includeLead ? "Included" : "Excluded",                                                 includeLead ? "#4aba4a" : "#5a4a2a"],
+              ["Yeonwoo mode",      yeonwooRatio ? "Ratio" : "Quantity",                                                  yeonwooRatio ? "#a020e8" : "#5a4a2a"],
               ["Token joins",       tokenCount > 0 ? String(tokenCount) : "None",                                         tokenCount > 0 ? "#c8a040" : "#5a4a2a"],
               ["Token march cap",   tokenCount > 0 && tokenMarch > 0 ? fmt(tokenMarch) : "None",                         tokenCount > 0 && tokenMarch > 0 ? "#c8a040" : "#5a4a2a"],
             ].map(([label, value, col]) => (
