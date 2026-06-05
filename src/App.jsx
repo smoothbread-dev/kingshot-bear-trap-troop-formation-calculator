@@ -70,46 +70,128 @@ function sortedTroops(troopMap) {
 // ─────────────────────────────────────────────
 
 function ReminderBanner({ onDismiss }) {
+  const [expanded, setExpanded] = useState(false);
+
+  const usefulPets = [
+    { name: "Mighty Bison",  skill: "Squad Capacity +15,000 (2h)",    why: "More troops per march = more damage per rally" },
+    { name: "Black Panther", skill: "Troop Lethality +10% (2h)",      why: "Direct damage buff — Lethality is the stat you want most" },
+    { name: "Giant Rhino",   skill: "All Squad Attack +10% (2h)",     why: "Flat attack multiplier across all troop types" },
+    { name: "Moose",         skill: "Rally Capacity +150,000 (2h)",   why: "Rally hosts only — increases how many joiners your rally can hold" },
+  ];
+
   return (
     <div style={{
-      background: "linear-gradient(135deg, #1a1200, #2a1e00)",
-      border: "1px solid #6a4a00",
-      borderRadius: 10,
-      padding: "10px 14px",
-      marginBottom: 16,
-      display: "flex",
-      alignItems: "flex-start",
-      justifyContent: "space-between",
-      gap: 10,
+      background:    "linear-gradient(135deg, #1a1200, #2a1e00)",
+      border:        "1px solid #6a4a00",
+      borderRadius:  10,
+      padding:       "10px 14px",
+      marginBottom:  16,
     }}>
-      <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
-        <span style={{ fontSize: 18, lineHeight: 1.3 }}>🐾</span>
-        <div>
-          <div style={{ fontSize: 12, fontWeight: "bold", color: "#e8a020", marginBottom: 3, letterSpacing: 0.5 }}>
-            Pre-Battle Reminder
-          </div>
-          <div style={{ fontSize: 11, color: "#b08030", lineHeight: 1.5 }}>
-            Activate <strong style={{ color: "#e8c060" }}>all pet skills</strong> before Bear Trap begins to maximize your damage output.
+
+      {/* ── Header row ── */}
+      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 10 }}>
+        <div style={{ display: "flex", alignItems: "flex-start", gap: 10, flex: 1 }}>
+          <span style={{ fontSize: 18, lineHeight: 1.3 }}>🐾</span>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 12, fontWeight: "bold", color: "#e8a020", marginBottom: 3, letterSpacing: 0.5 }}>
+              Pet Skills — What Helps &amp; What Doesn't
+            </div>
+            <div style={{ fontSize: 11, color: "#b08030", lineHeight: 1.5 }}>
+              Not all pet skills help in Bear Hunt — see what actually works.
+            </div>
+
+            {/* ── Toggle ── */}
+            <button
+              onClick={() => setExpanded(p => !p)}
+              style={{
+                marginTop:   6,
+                background:  "none",
+                border:      "1px solid #6a4a00",
+                borderRadius: 6,
+                color:       "#e8a020",
+                fontSize:    10,
+                cursor:      "pointer",
+                padding:     "3px 10px",
+                letterSpacing: 0.5,
+              }}
+            >
+              {expanded ? "▲ Show less" : "▼ Show details"}
+            </button>
           </div>
         </div>
+
+        {/* ── Dismiss ── */}
+        <button
+          onClick={onDismiss}
+          style={{
+            background: "none", border: "none", color: "#6a4a00",
+            fontSize: 16, cursor: "pointer", padding: "0 2px",
+            lineHeight: 1, flexShrink: 0, marginTop: 2,
+          }}
+          aria-label="Dismiss reminder"
+        >
+          ✕
+        </button>
       </div>
-      <button
-        onClick={onDismiss}
-        style={{
-          background: "none",
-          border: "none",
-          color: "#6a4a00",
-          fontSize: 16,
-          cursor: "pointer",
-          padding: "0 2px",
-          lineHeight: 1,
-          flexShrink: 0,
-          marginTop: 2,
-        }}
-        aria-label="Dismiss reminder"
-      >
-        ✕
-      </button>
+
+      {/* ── Expanded content ── */}
+      {expanded && (
+        <div style={{ marginTop: 12 }}>
+
+          {/* ── Useful pets ── */}
+          <div style={{ fontSize: 10, color: "#e8a020", letterSpacing: 1, marginBottom: 6, textTransform: "uppercase" }}>
+            ✅ Activate Before Bear Hunt
+          </div>
+
+          {usefulPets.map(pet => (
+            <div
+              key={pet.name}
+              style={{
+                background:   "#1f1600",
+                border:       "1px solid #3a2800",
+                borderRadius: 6,
+                padding:      "7px 10px",
+                marginBottom: 6,
+              }}
+            >
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 3 }}>
+                <span style={{ fontSize: 11, fontWeight: "bold", color: "#e8c060" }}>{pet.name}</span>
+                <span style={{ fontSize: 10, color: "#c8a040", background: "#2a1e00", borderRadius: 4, padding: "1px 6px" }}>
+                  {pet.skill}
+                </span>
+              </div>
+              <div style={{ fontSize: 10, color: "#8a7040", lineHeight: 1.4 }}>{pet.why}</div>
+            </div>
+          ))}
+
+          <div style={{ fontSize: 10, color: "#6a5030", marginBottom: 12, marginTop: 2, lineHeight: 1.5 }}>
+            💡 Activate right before launching or joining your first rally. The 2-hour window covers the full 30-minute event.
+          </div>
+
+          {/* ── Divider ── */}
+          <div style={{ borderTop: "1px solid #3a2800", marginBottom: 10 }} />
+
+          {/* ── Useless pet warning ── */}
+          <div style={{ fontSize: 10, color: "#e84040", letterSpacing: 1, marginBottom: 6, textTransform: "uppercase" }}>
+            ❌ Don't Bother — Moose "Horror Stare"
+          </div>
+          <div style={{
+            background:   "#1a0a0a",
+            border:       "1px solid #5a2020",
+            borderRadius: 6,
+            padding:      "8px 10px",
+            fontSize:     10,
+            color:        "#a06060",
+            lineHeight:   1.6,
+          }}>
+            <strong style={{ color: "#e84040" }}>Horror Stare reduces enemy Squad Health</strong> — but the Raging Bear has no Health bar, only Defense.
+            The skill targets a stat the Bear doesn't have, so it contributes{" "}
+            <strong style={{ color: "#e84040" }}>zero damage</strong>.{" "}
+            Don't burn the cooldown here. Moose is strong in PvP — just not in Bear Hunt.
+          </div>
+
+        </div>
+      )}
     </div>
   );
 }
@@ -119,41 +201,59 @@ function ReminderBanner({ onDismiss }) {
 // ─────────────────────────────────────────────
 
 function ReminderInline({ onDismiss }) {
+  const pets = ["Mighty Bison", "Black Panther", "Giant Rhino", "Moose (Capacity)"];
+
   return (
     <div style={{
-      background: "linear-gradient(135deg, #1a1200, #2a1e00)",
-      border: "1px solid #6a4a00",
+      background:   "linear-gradient(135deg, #1a1200, #2a1e00)",
+      border:       "1px solid #6a4a00",
       borderRadius: 10,
-      padding: "10px 14px",
+      padding:      "10px 14px",
       marginBottom: 16,
-      display: "flex",
-      alignItems: "flex-start",
+      display:      "flex",
+      alignItems:   "flex-start",
       justifyContent: "space-between",
-      gap: 10,
+      gap:          10,
     }}>
-      <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
+      <div style={{ display: "flex", alignItems: "flex-start", gap: 10, flex: 1 }}>
         <span style={{ fontSize: 18, lineHeight: 1.3 }}>⚔️</span>
-        <div>
+        <div style={{ flex: 1 }}>
           <div style={{ fontSize: 12, fontWeight: "bold", color: "#e8a020", marginBottom: 3, letterSpacing: 0.5 }}>
             Ready to calculate?
           </div>
-          <div style={{ fontSize: 11, color: "#b08030", lineHeight: 1.5 }}>
-            Double-check that <strong style={{ color: "#e8c060" }}>all pet skills are active</strong> before launching Bear Trap — don't leave damage on the table!
+          <div style={{ fontSize: 11, color: "#b08030", lineHeight: 1.5, marginBottom: 6 }}>
+            Double-check your <strong style={{ color: "#e8c060" }}>pet buffs are active</strong> before calculating formations — don't leave damage on the table!
+          </div>
+
+          {/* ── Pet name pills ── */}
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
+            {pets.map(p => (
+              <span
+                key={p}
+                style={{
+                  fontSize:     9,
+                  padding:      "2px 7px",
+                  background:   "#2a1e00",
+                  border:       "1px solid #4a3200",
+                  borderRadius: 10,
+                  color:        "#c8a040",
+                  letterSpacing: 0.3,
+                }}
+              >
+                {p}
+              </span>
+            ))}
           </div>
         </div>
       </div>
+
+      {/* ── Dismiss ── */}
       <button
         onClick={onDismiss}
         style={{
-          background: "none",
-          border: "none",
-          color: "#6a4a00",
-          fontSize: 16,
-          cursor: "pointer",
-          padding: "0 2px",
-          lineHeight: 1,
-          flexShrink: 0,
-          marginTop: 2,
+          background: "none", border: "none", color: "#6a4a00",
+          fontSize: 16, cursor: "pointer", padding: "0 2px",
+          lineHeight: 1, flexShrink: 0, marginTop: 2,
         }}
         aria-label="Dismiss reminder"
       >
