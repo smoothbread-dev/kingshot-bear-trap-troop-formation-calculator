@@ -42,7 +42,7 @@ const DEFAULT_TROOPS = {
 };
 
 const CHENKO_RATIO = { infantry: 1, cavalry: 10, archer: 89 };
-const LEAD_RATIO   = { infantry: 45, cavalry: 45, archer: 10 };
+const DEFAULT_LEAD_RATIO = { infantry: 45, cavalry: 45, archer: 10 };
 
 const SAVAGE_ADVANTAGE_OPTIONS = Array.from({ length: 11 }, (_, i) => i * 3000);
 
@@ -87,8 +87,6 @@ function ReminderBanner({ onDismiss }) {
       padding:       "10px 14px",
       marginBottom:  16,
     }}>
-
-      {/* ── Header row ── */}
       <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 10 }}>
         <div style={{ display: "flex", alignItems: "flex-start", gap: 10, flex: 1 }}>
           <span style={{ fontSize: 18, lineHeight: 1.3 }}>🐾</span>
@@ -99,8 +97,6 @@ function ReminderBanner({ onDismiss }) {
             <div style={{ fontSize: 11, color: "#b08030", lineHeight: 1.5 }}>
               Not all pet skills help in Bear Hunt — see what actually works.
             </div>
-
-            {/* ── Toggle ── */}
             <button
               onClick={() => setExpanded(p => !p)}
               style={{
@@ -119,8 +115,6 @@ function ReminderBanner({ onDismiss }) {
             </button>
           </div>
         </div>
-
-        {/* ── Dismiss ── */}
         <button
           onClick={onDismiss}
           style={{
@@ -134,15 +128,11 @@ function ReminderBanner({ onDismiss }) {
         </button>
       </div>
 
-      {/* ── Expanded content ── */}
       {expanded && (
         <div style={{ marginTop: 12 }}>
-
-          {/* ── Useful pets ── */}
           <div style={{ fontSize: 10, color: "#e8a020", letterSpacing: 1, marginBottom: 6, textTransform: "uppercase" }}>
             ✅ Activate Before Bear Hunt
           </div>
-
           {usefulPets.map(pet => (
             <div
               key={pet.name}
@@ -163,15 +153,10 @@ function ReminderBanner({ onDismiss }) {
               <div style={{ fontSize: 10, color: "#8a7040", lineHeight: 1.4 }}>{pet.why}</div>
             </div>
           ))}
-
           <div style={{ fontSize: 10, color: "#6a5030", marginBottom: 12, marginTop: 2, lineHeight: 1.5 }}>
             💡 Activate right before launching or joining your first rally. The 2-hour window covers the full 30-minute event.
           </div>
-
-          {/* ── Divider ── */}
           <div style={{ borderTop: "1px solid #3a2800", marginBottom: 10 }} />
-
-          {/* ── Useless pet warning ── */}
           <div style={{ fontSize: 10, color: "#e84040", letterSpacing: 1, marginBottom: 6, textTransform: "uppercase" }}>
             ❌ Don't Bother — Moose "Horror Stare"
           </div>
@@ -189,7 +174,6 @@ function ReminderBanner({ onDismiss }) {
             <strong style={{ color: "#e84040" }}>zero damage</strong>.{" "}
             Don't burn the cooldown here. Moose is strong in PvP — just not in Bear Hunt.
           </div>
-
         </div>
       )}
     </div>
@@ -224,8 +208,6 @@ function ReminderInline({ onDismiss }) {
           <div style={{ fontSize: 11, color: "#b08030", lineHeight: 1.5, marginBottom: 6 }}>
             Double-check your <strong style={{ color: "#e8c060" }}>pet buffs are active</strong> before calculating formations — don't leave damage on the table!
           </div>
-
-          {/* ── Pet name pills ── */}
           <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
             {pets.map(p => (
               <span
@@ -246,8 +228,6 @@ function ReminderInline({ onDismiss }) {
           </div>
         </div>
       </div>
-
-      {/* ── Dismiss ── */}
       <button
         onClick={onDismiss}
         style={{
@@ -267,57 +247,161 @@ function ReminderInline({ onDismiss }) {
 //  LEAD MARCH TOGGLE COMPONENT
 // ─────────────────────────────────────────────
 
-function LeadMarchToggle({ includeLead, onToggle }) {
+function LeadMarchToggle({ includeLead, onToggle, leadRatio, onRatioChange, leadRatioValid }) {
+  const sum = leadRatio.infantry + leadRatio.cavalry + leadRatio.archer;
+  const sumColor = sum === 100 ? "#4aba4a" : "#e84040";
+
+  const numInp = {
+    width: "100%",
+    background: "#0f1318",
+    border: "1px solid #2a3040",
+    borderRadius: 6,
+    padding: "6px 8px",
+    color: "#e0d8c8",
+    fontSize: 13,
+    boxSizing: "border-box",
+    textAlign: "center",
+  };
+
   return (
     <div style={{
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "space-between",
-      padding: "12px 0",
-      borderTop: "1px solid #2a2010",
-      borderBottom: "1px solid #2a2010",
-      marginBottom: 16,
+      borderTop:    "1px solid #2a2010",
+      borderBottom: includeLead ? "none" : "1px solid #2a2010",
+      marginBottom: includeLead ? 0 : 16,
     }}>
-      <div>
-        <div style={{ fontSize: 10, color: "#8a7a5a", letterSpacing: 1 }}>
-          INCLUDE LEAD MARCH
+      {/* ── Toggle row ── */}
+      <div style={{
+        display:        "flex",
+        alignItems:     "center",
+        justifyContent: "space-between",
+        padding:        "12px 0",
+      }}>
+        <div>
+          <div style={{ fontSize: 10, color: "#8a7a5a", letterSpacing: 1 }}>
+            INCLUDE LEAD MARCH
+          </div>
+          <div style={{ fontSize: 9, color: "#5a4a2a", marginTop: 3 }}>
+            {includeLead
+              ? `Current ratio: ${leadRatio.infantry}% Inf / ${leadRatio.cavalry}% Cav / ${leadRatio.archer}% Arch`
+              : "Toggle on to set a custom ratio"
+            }
+          </div>
         </div>
-        <div style={{ fontSize: 9, color: "#5a4a2a", marginTop: 3 }}>
-          Deducts troops using 45% Inf / 45% Cav / 10% Arch ratio
-        </div>
+
+        <button
+          onClick={onToggle}
+          role="switch"
+          aria-checked={includeLead}
+          aria-label="Toggle lead march"
+          style={{
+            width:      44,
+            height:     24,
+            borderRadius: 12,
+            border:     "none",
+            background: includeLead
+              ? "linear-gradient(135deg, #8a6010, #c8a040)"
+              : "#2a2a2a",
+            cursor:     "pointer",
+            position:   "relative",
+            transition: "background 0.2s",
+            flexShrink: 0,
+          }}
+        >
+          <span style={{
+            position:   "absolute",
+            top:        3,
+            left:       includeLead ? 23 : 3,
+            width:      18,
+            height:     18,
+            borderRadius: "50%",
+            background: "#fff",
+            transition: "left 0.2s",
+            display:    "block",
+          }} />
+        </button>
       </div>
 
-      <button
-        onClick={onToggle}
-        role="switch"
-        aria-checked={includeLead}
-        aria-label="Toggle lead march"
-        style={{
-          width: 44,
-          height: 24,
-          borderRadius: 12,
-          border: "none",
-          background: includeLead
-            ? "linear-gradient(135deg, #8a6010, #c8a040)"
-            : "#2a2a2a",
-          cursor: "pointer",
-          position: "relative",
-          transition: "background 0.2s",
-          flexShrink: 0,
-        }}
-      >
-        <span style={{
-          position: "absolute",
-          top: 3,
-          left: includeLead ? 23 : 3,
-          width: 18,
-          height: 18,
-          borderRadius: "50%",
-          background: "#fff",
-          transition: "left 0.2s",
-          display: "block",
-        }} />
-      </button>
+      {/* ── Ratio inputs (expanded when toggle is on) ── */}
+      {includeLead && (
+        <div style={{
+          background:   "#0f1318",
+          border:       "1px solid #2a2010",
+          borderRadius: 10,
+          padding:      "12px 14px",
+          marginBottom: 16,
+        }}>
+          <div style={{ fontSize: 10, color: "#8a7a5a", letterSpacing: 1, marginBottom: 10 }}>
+            LEAD MARCH RATIO
+          </div>
+
+          {/* ── Three inputs ── */}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 10 }}>
+            {[
+              { key: "infantry", label: "INF %" },
+              { key: "cavalry",  label: "CAV %" },
+              { key: "archer",   label: "ARCH %" },
+            ].map(({ key, label }) => (
+              <div key={key}>
+                <div style={{ fontSize: 9, color: "#5a4a2a", marginBottom: 4, letterSpacing: 0.5, textAlign: "center" }}>
+                  {label}
+                </div>
+                <input
+                  type="number"
+                  min={0}
+                  max={100}
+                  value={leadRatio[key] === 0 ? "" : leadRatio[key]}
+                  placeholder="0"
+                  onChange={e => {
+                    const val = Math.min(100, Math.max(0, parseInt(e.target.value) || 0));
+                    onRatioChange({ ...leadRatio, [key]: val });
+                  }}
+                  style={numInp}
+                />
+              </div>
+            ))}
+          </div>
+
+          {/* ── Sum indicator ── */}
+          <div style={{
+            display:        "flex",
+            alignItems:     "center",
+            justifyContent: "space-between",
+            fontSize:       10,
+          }}>
+            <span style={{ color: "#5a4a2a" }}>
+              Total must equal 100
+            </span>
+            <span style={{
+              fontWeight:  "bold",
+              color:       sumColor,
+              background:  sum === 100 ? "#0a1a0a" : "#1a0a0a",
+              border:      `1px solid ${sum === 100 ? "#2a4a2a" : "#4a2a2a"}`,
+              borderRadius: 6,
+              padding:     "2px 10px",
+              fontSize:    11,
+              transition:  "color 0.2s, background 0.2s",
+            }}>
+              {sum} / 100
+            </span>
+          </div>
+
+          {/* ── Validation error ── */}
+          {!leadRatioValid && (
+            <div style={{
+              marginTop:   8,
+              fontSize:    10,
+              color:       "#e84040",
+              background:  "#1a0808",
+              border:      "1px solid #5a2020",
+              borderRadius: 6,
+              padding:     "6px 10px",
+              lineHeight:  1.5,
+            }}>
+              ⚠️ Ratio must sum to exactly 100 before calculating.
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -391,6 +475,7 @@ function calculateFormations(
   tokenMarchSize,
   includeLead,
   yeonwooRatio,
+  leadRatio,
 ) {
   const effectiveMarch = baseMarchSize + savageAdvantage;
 
@@ -526,13 +611,13 @@ function calculateFormations(
 
   // ── STEP 2: Lead (conditional) ──
   if (includeLead) {
-    const leadResult = deductByRatio(effectiveMarch, LEAD_RATIO);
+    const leadResult = deductByRatio(effectiveMarch, leadRatio);
     formations.push({
       label:         "Rally Lead",
       type:          "lead",
       hero:          null,
       preset:        "RATIO",
-      ratioLabel:    "45% Inf / 45% Cav / 10% Arch",
+      ratioLabel:    `${leadRatio.infantry}% Inf / ${leadRatio.cavalry}% Cav / ${leadRatio.archer}% Arch`,
       effectiveMarch,
       baseMarch:     baseMarchSize,
       troops:        leadResult.troops,
@@ -557,13 +642,10 @@ function calculateFormations(
     yeonwooArcherShare = Math.ceil(totalApexArchersAvailable / 2);
     amaneArcherShare   = Math.floor(totalApexArchersAvailable / 2);
   }
-  // When yeonwooRatio = true, Yeonwoo pulls from the full pool via ratio,
-  // so Amane gets whatever Apex Archers remain after Yeonwoo's deduction.
 
   // ── STEP 5: Yeonwoo ──
   let yeonwooResult;
   if (yeonwooRatio) {
-    // Ratio mode — same as Chenko, uses effectiveMarch
     yeonwooResult = deductByRatio(effectiveMarch, CHENKO_RATIO);
     const hitMax = yeonwooResult.total >= effectiveMarch;
     formations.push({
@@ -576,11 +658,10 @@ function calculateFormations(
       baseMarch:     baseMarchSize,
       troops:        yeonwooResult.troops,
       total:         yeonwooResult.total,
-      hitMax,                              // ← true = full, false = shortfall
-      shortfall:     effectiveMarch - yeonwooResult.total,  // ← how many missing
+      hitMax,
+      shortfall:     effectiveMarch - yeonwooResult.total,
     });
   } else {
-    // Quantity mode — archer heavy with pre-split share
     yeonwooResult = deductArcherHeavyWithShare(baseMarchSize, yeonwooArcherShare);
     formations.push({
       label:      "Rally Join 2",
@@ -595,9 +676,8 @@ function calculateFormations(
   }
 
   // ── STEP 6: Amane ──
-  // When Yeonwoo is Ratio, amaneArcherShare = 0 so full remaining pool is used
   const amaneApexArchers = yeonwooRatio
-    ? pool.apexArcher          // full remaining Apex Archers
+    ? pool.apexArcher
     : amaneArcherShare;
 
   const amaneResult = deductArcherHeavyWithShare(baseMarchSize, amaneApexArchers);
@@ -607,7 +687,7 @@ function calculateFormations(
     hero:          "Amane",
     preset:        "QUANTITY",
     baseMarch:     baseMarchSize,
-    yeonwooRatio,              // ← passed through so card can update its info line
+    yeonwooRatio,
     troops:        amaneResult.troops,
     total:         amaneResult.total,
     filled:        amaneResult.filled,
@@ -654,10 +734,15 @@ export default function App() {
   const [tokenCount,         setTokenCount]         = useState(0);
   const [tokenMarch,         setTokenMarch]         = useState(0);
   const [includeLead,        setIncludeLead]        = useState(false);
+  const [leadRatio,          setLeadRatio]          = useState(DEFAULT_LEAD_RATIO);
   const [yeonwooRatio,       setYeonwooRatio]       = useState(false);
   const [result,             setResult]             = useState(null);
   const [showTopReminder,    setShowTopReminder]    = useState(true);
   const [showInlineReminder, setShowInlineReminder] = useState(true);
+
+  const leadRatioSum   = leadRatio.infantry + leadRatio.cavalry + leadRatio.archer;
+  const leadRatioValid = !includeLead || leadRatioSum === 100;
+  const canCalculate   = baseMarch > 0 && leadRatioValid;
 
   const totalTroops    = Object.values(troops).reduce((a, b) => a + b, 0);
   const effectiveMarch = baseMarch + savageAdvantage;
@@ -693,7 +778,7 @@ export default function App() {
   };
 
   function handleCalculate() {
-    if (!baseMarch || baseMarch <= 0) return;
+    if (!canCalculate) return;
     const res = calculateFormations(
       troops,
       baseMarch,
@@ -702,11 +787,11 @@ export default function App() {
       tokenMarch,
       includeLead,
       yeonwooRatio,
+      leadRatio,
     );
     setResult(res);
   }
 
-  // ── Dynamic label helpers ──
   const savageAdvantageHint = (() => {
     const parts = ["Chenko"];
     if (includeLead)  parts.push("Lead");
@@ -801,7 +886,6 @@ export default function App() {
         {/* Savage Advantage */}
         <div style={{ marginBottom: 16 }}>
           <div style={{ fontSize: 10, color: "#8a7a5a", marginBottom: 3, letterSpacing: 1 }}>SAVAGE ADVANTAGE</div>
-          {/* ── Dynamic hint ── */}
           <div style={{ fontSize: 9, color: "#5a4a2a", marginBottom: 4 }}>{savageAdvantageHint}</div>
           <select
             value={savageAdvantage}
@@ -818,7 +902,6 @@ export default function App() {
 
         {/* Effective March Breakdown */}
         <div style={{ fontSize: 11, color: "#5a4a2a", textAlign: "center", marginBottom: 16 }}>
-          {/* ── Dynamic label ── */}
           {effectiveMarchLabel}:{" "}
           <span style={{ color: "#c8a040", fontWeight: "bold" }}>{fmt(effectiveMarch)}</span>
           {savageAdvantage > 0 && (
@@ -828,10 +911,13 @@ export default function App() {
           )}
         </div>
 
-        {/* ── Lead March Toggle ── */}
+        {/* ── Lead March Toggle (with dynamic ratio inputs) ── */}
         <LeadMarchToggle
           includeLead={includeLead}
           onToggle={() => setIncludeLead(p => !p)}
+          leadRatio={leadRatio}
+          onRatioChange={setLeadRatio}
+          leadRatioValid={leadRatioValid}
         />
 
         {/* ── Yeonwoo Ratio Toggle ── */}
@@ -846,8 +932,6 @@ export default function App() {
             Token Join Settings
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-
-            {/* Token Count */}
             <div>
               <div style={{ fontSize: 10, color: "#5a5a8a", marginBottom: 3, letterSpacing: 1 }}>NUMBER OF JOINS</div>
               <div style={{ fontSize: 9, color: "#5a4a2a", marginBottom: 4 }}>0–10 additional joins</div>
@@ -861,8 +945,6 @@ export default function App() {
                 style={inp}
               />
             </div>
-
-            {/* Token March Size */}
             <div>
               <div style={{ fontSize: 10, color: "#5a5a8a", marginBottom: 3, letterSpacing: 1 }}>TOKEN MARCH SIZE</div>
               <div style={{ fontSize: 9, color: "#5a4a2a", marginBottom: 4 }}>Hard cap per token join</div>
@@ -874,7 +956,6 @@ export default function App() {
                 style={inp}
               />
             </div>
-
           </div>
         </div>
       </div>
@@ -887,15 +968,25 @@ export default function App() {
       {/* ── Calculate Button ── */}
       <button
         onClick={handleCalculate}
+        disabled={!canCalculate}
         style={{
           width: "100%", padding: 13, borderRadius: 10, border: "none",
-          background: "linear-gradient(135deg,#8a6010,#c8a040)",
-          color: "#0a0c0f", fontWeight: "bold", fontSize: 15,
-          letterSpacing: 1, cursor: "pointer", marginBottom: 20,
+          background: canCalculate
+            ? "linear-gradient(135deg,#8a6010,#c8a040)"
+            : "#2a2a1a",
+          color: canCalculate ? "#0a0c0f" : "#5a5a3a",
+          fontWeight: "bold", fontSize: 15,
+          letterSpacing: 1,
+          cursor: canCalculate ? "pointer" : "not-allowed",
+          marginBottom: 20,
           fontFamily: "'Georgia', serif",
+          transition: "background 0.2s, color 0.2s",
         }}
       >
-        ⚔ CALCULATE FORMATIONS
+        {!canCalculate && includeLead && leadRatioSum !== 100
+          ? `⚠ Lead ratio sums to ${leadRatioSum} — must be 100`
+          : "⚔ CALCULATE FORMATIONS"
+        }
       </button>
 
       {/* ── Results ── */}
@@ -988,7 +1079,7 @@ export default function App() {
                       maximise her march using the remaining pool.
                     </span>
                   </div>
-                )}                                                   
+                )}
 
                 {f.type === "token" && (
                   <div style={{ fontSize: 10, color: "#6a5a3a", marginBottom: 8, letterSpacing: 0.5 }}>
@@ -1067,9 +1158,8 @@ export default function App() {
               ["Undeployed",        fmt(undeployed) + (undeployed === 0 ? " ✓" : ""),                                     undeployed === 0 ? "#4aba4a" : "#e87020"],
               ["Base march size",   fmt(baseMarch),                                                                        "#c8a040"],
               ["Savage Advantage",  savageAdvantage > 0 ? `+${fmt(savageAdvantage)}` : "None",                            savageAdvantage > 0 ? "#c8a040" : "#5a4a2a"],
-              // ── Dynamic label ──
               [effectiveMarchLabel, fmt(effectiveMarch),                                                                   "#c8a040"],
-              ["Lead march",        includeLead ? "Included" : "Excluded",                                                 includeLead ? "#4aba4a" : "#5a4a2a"],
+              ["Lead march",        includeLead ? `${leadRatio.infantry}% / ${leadRatio.cavalry}% / ${leadRatio.archer}%` : "Excluded", includeLead ? "#e8a020" : "#5a4a2a"],
               ["Yeonwoo mode",      yeonwooRatio ? "Ratio" : "Quantity",                                                  yeonwooRatio ? "#a020e8" : "#5a4a2a"],
               ["Token joins",       tokenCount > 0 ? String(tokenCount) : "None",                                         tokenCount > 0 ? "#c8a040" : "#5a4a2a"],
               ["Token march cap",   tokenCount > 0 && tokenMarch > 0 ? fmt(tokenMarch) : "None",                         tokenCount > 0 && tokenMarch > 0 ? "#c8a040" : "#5a4a2a"],
